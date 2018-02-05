@@ -2,18 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="8a9bec53-4076-44b1-aa52-265a0bb896c4" name="Default" comment="">
-      <change beforePath="" afterPath="$PROJECT_DIR$/.gitignore" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/.idea/asomir_microservices.iml" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/.idea/modules.xml" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/.idea/vcs.xml" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change beforePath="$USER_HOME$/asomir_infra/ansible/playbooks/deploy.yml" afterPath="$USER_HOME$/asomir_infra/ansible/playbooks/deploy.yml" />
-      <change beforePath="$USER_HOME$/asomir_infra/ansible/roles/app/handlers/main.yml" afterPath="$USER_HOME$/asomir_infra/ansible/roles/app/handlers/main.yml" />
-      <change beforePath="$USER_HOME$/asomir_infra/ansible/roles/app/tasks/main.yml" afterPath="$USER_HOME$/asomir_infra/ansible/roles/app/tasks/main.yml" />
-      <change beforePath="$USER_HOME$/asomir_infra/ansible/roles/app/tasks/puma.yml" afterPath="$USER_HOME$/asomir_infra/ansible/roles/app/tasks/puma.yml" />
-      <change beforePath="$USER_HOME$/asomir_infra/ansible/roles/app/tasks/ruby.yml" afterPath="$USER_HOME$/asomir_infra/ansible/roles/app/tasks/ruby.yml" />
-      <change beforePath="$USER_HOME$/asomir_infra/ansible/roles/db/tasks/main.yml" afterPath="$USER_HOME$/asomir_infra/ansible/roles/db/tasks/main.yml" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -23,56 +12,297 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="FileEditorManager">
-    <leaf>
-      <file leaf-file-name="Vagrantfile" pinned="false" current-in-tab="false">
-        <entry file="file://$USER_HOME$/asomir_infra/Vagrantfile">
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
+      <file leaf-file-name="packer_app.yml" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/packer_app.yml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-758">
+            <state relative-caret-position="90">
+              <caret line="5" column="7" lean-forward="false" selection-start-line="5" selection-start-column="7" selection-end-line="5" selection-end-column="7" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="main.yml" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/handlers/main.yml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="0">
               <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
               <folding />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="Vagrantfile" pinned="false" current-in-tab="false">
-        <entry file="file://$USER_HOME$/asomir_infra/ansible/Vagrantfile">
+      <file leaf-file-name="main.yml" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/meta/main.yml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="126">
-              <caret line="7" column="21" lean-forward="true" selection-start-line="0" selection-start-column="0" selection-end-line="36" selection-end-column="3" />
+            <state relative-caret-position="0">
+              <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
               <folding />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="README.md" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/README.md">
+      <file leaf-file-name="config_mongo.yml" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/tasks/config_mongo.yml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="0">
+              <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="install_mongo.yml" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/tasks/install_mongo.yml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="0">
+              <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="packer_db.yml" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/packer_db.yml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="486">
+              <caret line="27" column="18" lean-forward="false" selection-start-line="27" selection-start-column="18" selection-end-line="27" selection-end-column="18" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="ubuntu16.json" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/packer/ubuntu16.json">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="0">
+              <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="app.json" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/packer/app.json">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="450">
+              <caret line="25" column="44" lean-forward="false" selection-start-line="25" selection-start-column="44" selection-end-line="25" selection-end-column="44" />
+              <folding>
+                <marker date="1517802678363" expanded="true" signature="954:957" ph="[...]" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="README.md" pinned="false" current-in-tab="true">
+        <entry file="file://$USER_HOME$/asomir_infra/README.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
               <first_editor relative-caret-position="0">
                 <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-                <folding />
+                <folding>
+                  <marker date="1517546809620" expanded="true" signature="1065:1103" ph="d" />
+                  <marker date="1517546809620" expanded="true" signature="1447:1470" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="1480:1483" ph="a" />
+                  <marker date="1517546809620" expanded="true" signature="1494:1498" ph="t" />
+                  <marker date="1517546809620" expanded="true" signature="1515:1520" ph="F" />
+                  <marker date="1517546809620" expanded="true" signature="1543:1569" ph="I" />
+                  <marker date="1517546809620" expanded="true" signature="1581:1656" ph="t" />
+                  <marker date="1517546809620" expanded="true" signature="1677:1682" ph="F" />
+                  <marker date="1517546809620" expanded="true" signature="1734:1745" ph="A" />
+                  <marker date="1517546809620" expanded="true" signature="1765:1775" ph="&quot;" />
+                  <marker date="1517546809620" expanded="true" signature="1791:1811" ph="k" />
+                  <marker date="1517546809620" expanded="true" signature="1820:1827" ph="i" />
+                  <marker date="1517546809620" expanded="true" signature="1837:1855" ph="A" />
+                  <marker date="1517546809620" expanded="true" signature="1884:1977" ph="d" />
+                  <marker date="1517546809620" expanded="true" signature="1989:1996" ph="p" />
+                  <marker date="1517546809620" expanded="true" signature="2005:2012" ph="i" />
+                  <marker date="1517546809620" expanded="true" signature="2022:2045" ph="I" />
+                  <marker date="1517546809620" expanded="true" signature="2063:2074" ph="m" />
+                  <marker date="1517546809620" expanded="true" signature="2086:2093" ph="p" />
+                  <marker date="1517546809620" expanded="true" signature="2102:2109" ph="i" />
+                  <marker date="1517546809620" expanded="true" signature="2119:2147" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="2169:2175" ph="m" />
+                  <marker date="1517546809620" expanded="true" signature="2189:2192" ph="y" />
+                  <marker date="1517546809620" expanded="true" signature="2204:2211" ph="s" />
+                  <marker date="1517546809620" expanded="true" signature="2220:2227" ph="i" />
+                  <marker date="1517546809620" expanded="true" signature="2276:2300" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="2322:2346" ph="t" />
+                  <marker date="1517546809620" expanded="true" signature="2357:2373" ph="/" />
+                  <marker date="1517546809620" expanded="true" signature="2384:2388" ph="0" />
+                  <marker date="1517546809620" expanded="true" signature="2399:2413" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="2547:2591" ph="S" />
+                  <marker date="1517546809620" expanded="true" signature="2606:2648" ph="&quot;" />
+                  <marker date="1517546809620" expanded="true" signature="2660:2677" ph="i" />
+                  <marker date="1517546809620" expanded="true" signature="2689:2705" ph="c" />
+                  <marker date="1517546809620" expanded="true" signature="3206:3253" ph="I" />
+                  <marker date="1517546809620" expanded="true" signature="3261:3292" ph="&quot;" />
+                  <marker date="1517546809620" expanded="true" signature="3313:3322" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="3329:3341" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="3348:3363" ph="b" />
+                  <marker date="1517546809620" expanded="true" signature="3372:3376" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="3729:4118" ph="db&#10;├── README.md&#10;├── d....yml " />
+                  <marker date="1517546809620" expanded="true" signature="4259:4283" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="4305:4329" ph="t" />
+                  <marker date="1517546809620" expanded="true" signature="4340:4356" ph="/" />
+                  <marker date="1517546809620" expanded="true" signature="4367:4371" ph="0" />
+                  <marker date="1517546809620" expanded="true" signature="4382:4396" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="4832:4856" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="4878:4892" ph="m" />
+                  <marker date="1517546809620" expanded="true" signature="4904:4920" ph="/" />
+                  <marker date="1517546809620" expanded="true" signature="4932:4936" ph="0" />
+                  <marker date="1517546809620" expanded="true" signature="4946:4960" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="5077:5091" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="5108:5130" ph="m" />
+                  <marker date="1517546809620" expanded="true" signature="5309:5314" ph="2" />
+                  <marker date="1517546809620" expanded="true" signature="5330:5339" ph="1" />
+                  <marker date="1517546809620" expanded="true" signature="5591:5613" ph="A" />
+                  <marker date="1517546809620" expanded="true" signature="5632:5644" ph="p" />
+                  <marker date="1517546809620" expanded="true" signature="5656:5688" ph="/" />
+                  <marker date="1517546809620" expanded="true" signature="5702:5714" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="5723:5751" ph="A" />
+                  <marker date="1517546809620" expanded="true" signature="5774:5786" ph="d" />
+                  <marker date="1517546809620" expanded="true" signature="5798:5821" ph="/" />
+                  <marker date="1517546809620" expanded="true" signature="5834:5841" ph="a" />
+                  <marker date="1517546809620" expanded="true" signature="5854:5861" ph="a" />
+                  <marker date="1517546809620" expanded="true" signature="5870:5881" ph="e" />
+                  <marker date="1517546809620" expanded="true" signature="5898:5914" ph="p" />
+                  <marker date="1517546809620" expanded="true" signature="6215:6227" ph="r" />
+                  <marker date="1517546809620" expanded="true" signature="6244:6264" ph="p" />
+                  <marker date="1517546809620" expanded="true" signature="6436:6445" ph="1" />
+                  <marker date="1517546809620" expanded="true" signature="6548:6561" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="6571:6574" ph="a" />
+                  <marker date="1517546809620" expanded="true" signature="6585:6589" ph="t" />
+                  <marker date="1517546809620" expanded="true" signature="6610:6620" ph="1" />
+                  <marker date="1517546809620" expanded="true" signature="6636:6639" ph="a" />
+                  <marker date="1517546809620" expanded="true" signature="6680:6697" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="6707:6709" ph="d" />
+                  <marker date="1517546809620" expanded="true" signature="6720:6724" ph="t" />
+                  <marker date="1517546809620" expanded="true" signature="6752:6759" ph="0" />
+                  <marker date="1517546809620" expanded="true" signature="6775:6777" ph="d" />
+                  <marker date="1517546809620" expanded="true" signature="8111:8155" ph="S" />
+                  <marker date="1517546809620" expanded="true" signature="8170:8212" ph="&quot;" />
+                  <marker date="1517546809620" expanded="true" signature="9154:9169" ph="j" />
+                  <marker date="1517546809620" expanded="true" signature="9179:9184" ph="v" />
+                  <marker date="1517546809620" expanded="true" signature="9671:9860" ph="{...}" />
+                  <marker date="1517546809620" expanded="true" signature="9737:9793" ph="{...}" />
+                  <marker date="1517546809620" expanded="true" signature="9936:9949" ph="C" />
+                  <marker date="1517546809620" expanded="true" signature="9959:9962" ph="a" />
+                  <marker date="1517546809620" expanded="true" signature="9973:9977" ph="t" />
+                  <marker date="1517546809620" expanded="true" signature="9994:9997" ph="a" />
+                  <marker date="1517546809620" expanded="true" signature="10004:10019" ph="j" />
+                  <marker date="1517546809620" expanded="true" signature="10539:10615" ph="template: &lt;3 keys&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="10555:10579" ph="templates…od.conf.j2" />
+                  <marker date="1517546809620" expanded="true" signature="10587:10603" ph="/etc/mongod.conf" />
+                  <marker date="1517546809620" expanded="true" signature="10611:10615" ph="0644" />
+                  <marker date="1517546809620" expanded="true" signature="10622:10628" ph="db-tag" />
+                  <marker date="1517546809620" expanded="true" signature="10811:10870" ph="storage: &lt;3 keys&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="10829:10845" ph="/var/lib/mongodb" />
+                  <marker date="1517546809620" expanded="true" signature="10866:10870" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="10902:10983" ph="systemLog: &lt;3 keys&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="10927:10931" ph="file" />
+                  <marker date="1517546809620" expanded="true" signature="10944:10948" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="10956:10983" ph="/var/log/…mongod.log" />
+                  <marker date="1517546809620" expanded="true" signature="11005:11081" ph="net: &lt;2 keys&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="11011:11052" ph="port: {0 keys}" />
+                  <marker date="1517546809620" expanded="true" signature="11020:11049" ph="mongo_por…t('27017')" />
+                  <marker date="1517546809620" expanded="true" signature="11054:11081" ph="bindIp: {0 keys}" />
+                  <marker date="1517546809620" expanded="true" signature="11065:11078" ph="mongo_bind_ip" />
+                  <marker date="1517546809620" expanded="true" signature="11116:11201" ph="handlers: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="11135:11149" ph="restart mongod" />
+                  <marker date="1517546809620" expanded="true" signature="11159:11163" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="11174:11201" ph="name=mong…=restarted" />
+                  <marker date="1517546809620" expanded="true" signature="11470:11492" ph="Add unit …e for Puma" />
+                  <marker date="1517546809620" expanded="true" signature="11502:11506" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="11520:11538" ph="files/puma.service" />
+                  <marker date="1517546809620" expanded="true" signature="11546:11578" ph="/etc/syst…ma.service" />
+                  <marker date="1517546809620" expanded="true" signature="11586:11593" ph="app-tag" />
+                  <marker date="1517546809620" expanded="true" signature="11595:11635" ph="notify: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="11603:11614" ph="reload puma" />
+                  <marker date="1517546809620" expanded="true" signature="11624:11635" ph="enable puma" />
+                  <marker date="1517546809620" expanded="true" signature="11645:11649" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="11660:11681" ph="name=puma…nabled=yes" />
+                  <marker date="1517546809620" expanded="true" signature="11689:11696" ph="app-tag" />
+                  <marker date="1517546809620" expanded="true" signature="11766:11777" ph="reload puma" />
+                  <marker date="1517546809620" expanded="true" signature="11787:11791" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="11802:11826" ph="name=puma…e=reloaded" />
+                  <marker date="1517546809620" expanded="true" signature="12089:12117" ph="Add confi…connection" />
+                  <marker date="1517546809620" expanded="true" signature="12135:12157" ph="templates…_config.j2" />
+                  <marker date="1517546809620" expanded="true" signature="12165:12188" ph="$PROJECT_DIR$/../../app…/db_config" />
+                  <marker date="1517546809620" expanded="true" signature="12196:12203" ph="app-tag" />
+                  <marker date="1517546809620" expanded="true" signature="12309:12353" ph="Fetch the…ation code" />
+                  <marker date="1517546809620" expanded="true" signature="12367:12418" ph="https://g…reddit.git" />
+                  <marker date="1517546809620" expanded="true" signature="12426:12446" ph="$PROJECT_DIR$/../../appuser/reddit" />
+                  <marker date="1517546809620" expanded="true" signature="12457:12465" ph="monolith" />
+                  <marker date="1517546809620" expanded="true" signature="12473:12483" ph="deploy-tag" />
+                  <marker date="1517546809620" expanded="true" signature="12485:12529" ph="notify: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="12493:12505" ph="restart puma" />
+                  <marker date="1517546809620" expanded="true" signature="12515:12529" ph="Bundle install" />
+                  <marker date="1517546809620" expanded="true" signature="12548:12555" ph="present" />
+                  <marker date="1517546809620" expanded="true" signature="12564:12584" ph="$PROJECT_DIR$/../../appuser/reddit" />
+                  <marker date="1517546809620" expanded="true" signature="12592:12602" ph="deploy-tag" />
+                  <marker date="1517546809620" expanded="true" signature="12655:12667" ph="restart puma" />
+                  <marker date="1517546809620" expanded="true" signature="12677:12681" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="12692:12717" ph="name=puma…=restarted" />
+                  <marker date="1517546809620" expanded="true" signature="12851:12868" ph="Configure MongoDB" />
+                  <marker date="1517546809620" expanded="true" signature="12877:12879" ph="db" />
+                  <marker date="1517546809620" expanded="true" signature="12887:12893" ph="db-tag" />
+                  <marker date="1517546809620" expanded="true" signature="12903:12907" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="12931:12938" ph="0.0.0.0" />
+                  <marker date="1517546809620" expanded="true" signature="12940:12980" ph="tasks: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="12956:12980" ph="Change mo…onfig file" />
+                  <marker date="1517546809620" expanded="true" signature="12998:13022" ph="templates…od.conf.j2" />
+                  <marker date="1517546809620" expanded="true" signature="13030:13046" ph="/etc/mongod.conf" />
+                  <marker date="1517546809620" expanded="true" signature="13054:13058" ph="0644" />
+                  <marker date="1517546809620" expanded="true" signature="13068:13082" ph="restart mongod" />
+                  <marker date="1517546809620" expanded="true" signature="13084:13117" ph="handlers: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="13103:13117" ph="restart mongod" />
+                  <marker date="1517546809620" expanded="true" signature="13128:13155" ph="name=mong…=restarted" />
+                  <marker date="1517546809620" expanded="true" signature="13198:13221" ph="ansible/r…t_app2.yml" />
+                  <marker date="1517546809620" expanded="true" signature="13230:13243" ph="Configure App" />
+                  <marker date="1517546809620" expanded="true" signature="13252:13255" ph="app" />
+                  <marker date="1517546809620" expanded="true" signature="13263:13270" ph="app-tag" />
+                  <marker date="1517546809620" expanded="true" signature="13280:13284" ph="true" />
+                  <marker date="1517546809620" expanded="true" signature="13302:13312" ph="10.132.0.2" />
+                  <marker date="1517546809620" expanded="true" signature="13314:13352" ph="tasks: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="13330:13352" ph="Add unit …e for Puma" />
+                  <marker date="1517546809620" expanded="true" signature="13366:13384" ph="files/puma.service" />
+                  <marker date="1517546809620" expanded="true" signature="13392:13424" ph="/etc/syst…ma.service" />
+                  <marker date="1517546809620" expanded="true" signature="13426:13483" ph="notify: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="13434:13445" ph="reload puma" />
+                  <marker date="1517546809620" expanded="true" signature="13455:13483" ph="Add confi…connection" />
+                  <marker date="1517546809620" expanded="true" signature="13501:13523" ph="templates…_config.j2" />
+                  <marker date="1517546809620" expanded="true" signature="13531:13554" ph="$PROJECT_DIR$/../../app…/db_config" />
+                  <marker date="1517546809620" expanded="true" signature="13563:13570" ph="appuser" />
+                  <marker date="1517546809620" expanded="true" signature="13572:13607" ph="group: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="13579:13586" ph="appuser" />
+                  <marker date="1517546809620" expanded="true" signature="13596:13607" ph="enable puma" />
+                  <marker date="1517546809620" expanded="true" signature="13618:13639" ph="name=puma…nabled=yes" />
+                  <marker date="1517546809620" expanded="true" signature="13641:13671" ph="handlers: &lt;1 item&gt;" />
+                  <marker date="1517546809620" expanded="true" signature="13660:13671" ph="reload puma" />
+                  <marker date="1517546809620" expanded="true" signature="13682:13706" ph="name=puma…e=reloaded" />
+                  <marker date="1517546809620" expanded="true" signature="14500:14593" ph="provisioners: [1 item]" />
+                  <marker date="1517546809620" expanded="true" signature="14530:14539" ph="ansible" />
+                  <marker date="1517546809620" expanded="true" signature="14559:14586" ph="../ansibl…er_app.yml" />
+                  <marker date="1517546809620" expanded="true" signature="14652:14744" ph="provisioners: [1 item]" />
+                  <marker date="1517546809620" expanded="true" signature="14682:14691" ph="ansible" />
+                  <marker date="1517546809620" expanded="true" signature="14711:14737" ph="../ansibl…ker_db.yml" />
+                </folding>
               </first_editor>
               <second_editor />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name=".gitignore" pinned="false" current-in-tab="false">
-        <entry file="file://$USER_HOME$/asomir_infra/.gitignore">
+      <file leaf-file-name="db.json" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/asomir_infra/packer/db.json">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="0">
-              <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name=".gitignore" pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/.gitignore">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="0">
-              <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-              <folding />
+            <state relative-caret-position="347">
+              <caret line="27" column="1" lean-forward="false" selection-start-line="27" selection-start-column="1" selection-end-line="27" selection-end-column="1" />
+              <folding>
+                <marker date="1517802678363" expanded="true" signature="959:962" ph="[...]" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -81,12 +311,30 @@
   </component>
   <component name="Git.Settings">
     <option name="ROOT_SYNC" value="DONT_SYNC" />
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$USER_HOME$/asomir_infra" />
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$USER_HOME$/asomir_infra" value="ansible-4" />
+      </map>
+    </option>
   </component>
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
+        <option value="$USER_HOME$/asomir_infra/ansible/playbooks/deploy.yml" />
+        <option value="$USER_HOME$/asomir_infra/vagrant.default.yml" />
+        <option value="$USER_HOME$/asomir_infra/ansible/vagrant.default.yml" />
         <option value="$USER_HOME$/asomir_infra/ansible/Vagrantfile" />
+        <option value="$USER_HOME$/asomir_infra/ansible/main.py" />
+        <option value="$USER_HOME$/asomir_infra/ansible/requirements.txt" />
+        <option value="$USER_HOME$/asomir_infra/.gitignore" />
+        <option value="$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/molecule.yml" />
+        <option value="$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/playbook.yml" />
+        <option value="$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/tests/test_default.py" />
+        <option value="$USER_HOME$/asomir_infra/ansible/playbooks/packer_app.yml" />
+        <option value="$USER_HOME$/asomir_infra/ansible/playbooks/packer_db.yml" />
+        <option value="$USER_HOME$/asomir_infra/packer/db.json" />
+        <option value="$USER_HOME$/asomir_infra/packer/app.json" />
       </list>
     </option>
   </component>
@@ -112,7 +360,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scratches" />
       <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
@@ -130,10 +377,34 @@
               <item name="asomir_infra" type="462c0819:PsiDirectoryNode" />
               <item name="ansible" type="462c0819:PsiDirectoryNode" />
             </path>
+            <path>
+              <item name="asomir_microservices" type="b2602c69:ProjectViewProjectNode" />
+              <item name="asomir_infra" type="462c0819:PsiDirectoryNode" />
+              <item name="ansible" type="462c0819:PsiDirectoryNode" />
+              <item name="playbooks" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="asomir_microservices" type="b2602c69:ProjectViewProjectNode" />
+              <item name="asomir_infra" type="462c0819:PsiDirectoryNode" />
+              <item name="ansible" type="462c0819:PsiDirectoryNode" />
+              <item name="roles" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="asomir_microservices" type="b2602c69:ProjectViewProjectNode" />
+              <item name="asomir_infra" type="462c0819:PsiDirectoryNode" />
+              <item name="packer" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="asomir_microservices" type="b2602c69:ProjectViewProjectNode" />
+              <item name="asomir_infra" type="462c0819:PsiDirectoryNode" />
+              <item name="packer" type="462c0819:PsiDirectoryNode" />
+              <item name="scripts" type="462c0819:PsiDirectoryNode" />
+            </path>
           </expand>
           <select />
         </subPane>
       </pane>
+      <pane id="Scratches" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -141,6 +412,8 @@
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$USER_HOME$/asomir_infra/ansible" />
+      <recent name="$USER_HOME$/asomir_infra" />
       <recent name="$PROJECT_DIR$" />
     </key>
   </component>
@@ -178,13 +451,13 @@
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.24986821" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Terminal" active="true" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32984293" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info id="Terminal" active="true" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.3340314" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
@@ -202,30 +475,43 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$USER_HOME$/asomir_infra/Vagrantfile">
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/site.retry">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-758">
+        <state relative-caret-position="0">
           <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding />
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/asomir_infra/ansible/Vagrantfile">
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/requirements.txt">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="126">
-          <caret line="7" column="21" lean-forward="true" selection-start-line="0" selection-start-column="0" selection-end-line="36" selection-end-column="3" />
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/README.md">
-      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
-        <state split_layout="SPLIT">
-          <first_editor relative-caret-position="0">
-            <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-            <folding />
-          </first_editor>
-          <second_editor />
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/ansible.cfg">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="10" selection-end-column="10" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/app/defaults/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="4" selection-end-column="20" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/app/handlers/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
         </state>
       </provider>
     </entry>
@@ -237,11 +523,557 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/.gitignore">
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/old/inventory.yml">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
           <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/deploy.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="378">
+          <caret line="21" column="38" lean-forward="true" selection-start-line="21" selection-start-column="38" selection-end-line="21" selection-end-column="38" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/app/vars/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/README.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="0">
+            <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/old/inventory.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/ubuntu-xenial-16.04-cloudimg-console.log">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/app/handlers/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/app/defaults/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="4" selection-end-column="20" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/app.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/base.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/deploy.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="378">
+          <caret line="21" column="38" lean-forward="false" selection-start-line="21" selection-start-column="38" selection-end-line="21" selection-end-column="38" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/ansible.cfg">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="72">
+          <caret line="4" column="24" lean-forward="false" selection-start-line="4" selection-start-column="24" selection-end-line="4" selection-end-column="24" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/site.retry">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/Vagrantfile">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/.vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/Vagrantfile">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="408">
+          <caret line="33" column="6" lean-forward="false" selection-start-line="33" selection-start-column="6" selection-end-line="34" selection-end-column="34" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/main.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="72">
+          <caret line="4" column="57" lean-forward="false" selection-start-line="4" selection-start-column="57" selection-end-line="4" selection-end-column="57" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/Pipfile.lock">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/requests">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/requirements.txt">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="54">
+          <caret line="3" column="22" lean-forward="false" selection-start-line="3" selection-start-column="22" selection-end-line="3" selection-end-column="22" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/.yamllint">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="306">
+          <caret line="17" column="8" lean-forward="false" selection-start-line="17" selection-start-column="8" selection-end-line="17" selection-end-column="8" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/vagrant.default.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="18">
+          <caret line="1" column="19" lean-forward="false" selection-start-line="1" selection-start-column="19" selection-end-line="1" selection-end-column="19" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/vagrant.default.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="36">
+          <caret line="2" column="31" lean-forward="false" selection-start-line="2" selection-start-column="31" selection-end-line="2" selection-end-column="31" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/create.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/destroy.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/INSTALL.rst">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/prepare.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/molecule.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="396">
+          <caret line="22" column="0" lean-forward="false" selection-start-line="22" selection-start-column="0" selection-end-line="22" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/playbook.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="90">
+          <caret line="5" column="26" lean-forward="false" selection-start-line="5" selection-start-column="26" selection-end-line="5" selection-end-column="26" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/ubuntu-xenial-16.04-cloudimg-console.log">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/molecule/default/tests/test_default.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="396">
+          <caret line="22" column="58" lean-forward="true" selection-start-line="22" selection-start-column="58" selection-end-line="22" selection-end-column="58" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/db.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/defaults/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/handlers/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/meta/main.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/tasks/config_mongo.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/roles/db/tasks/install_mongo.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/packer_app.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="90">
+          <caret line="5" column="7" lean-forward="false" selection-start-line="5" selection-start-column="7" selection-end-line="5" selection-end-column="7" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/ansible/playbooks/packer_db.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="486">
+          <caret line="27" column="18" lean-forward="false" selection-start-line="27" selection-start-column="18" selection-end-line="27" selection-end-column="18" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/packer/ubuntu16.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/packer/db.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="347">
+          <caret line="27" column="1" lean-forward="false" selection-start-line="27" selection-start-column="1" selection-end-line="27" selection-end-column="1" />
+          <folding>
+            <marker date="1517802678363" expanded="true" signature="959:962" ph="[...]" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/packer/app.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="450">
+          <caret line="25" column="44" lean-forward="false" selection-start-line="25" selection-start-column="44" selection-end-line="25" selection-end-column="44" />
+          <folding>
+            <marker date="1517802678363" expanded="true" signature="954:957" ph="[...]" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/asomir_infra/README.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="0">
+            <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+            <folding>
+              <marker date="1517546809620" expanded="true" signature="1065:1103" ph="d" />
+              <marker date="1517546809620" expanded="true" signature="1447:1470" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="1480:1483" ph="a" />
+              <marker date="1517546809620" expanded="true" signature="1494:1498" ph="t" />
+              <marker date="1517546809620" expanded="true" signature="1515:1520" ph="F" />
+              <marker date="1517546809620" expanded="true" signature="1543:1569" ph="I" />
+              <marker date="1517546809620" expanded="true" signature="1581:1656" ph="t" />
+              <marker date="1517546809620" expanded="true" signature="1677:1682" ph="F" />
+              <marker date="1517546809620" expanded="true" signature="1734:1745" ph="A" />
+              <marker date="1517546809620" expanded="true" signature="1765:1775" ph="&quot;" />
+              <marker date="1517546809620" expanded="true" signature="1791:1811" ph="k" />
+              <marker date="1517546809620" expanded="true" signature="1820:1827" ph="i" />
+              <marker date="1517546809620" expanded="true" signature="1837:1855" ph="A" />
+              <marker date="1517546809620" expanded="true" signature="1884:1977" ph="d" />
+              <marker date="1517546809620" expanded="true" signature="1989:1996" ph="p" />
+              <marker date="1517546809620" expanded="true" signature="2005:2012" ph="i" />
+              <marker date="1517546809620" expanded="true" signature="2022:2045" ph="I" />
+              <marker date="1517546809620" expanded="true" signature="2063:2074" ph="m" />
+              <marker date="1517546809620" expanded="true" signature="2086:2093" ph="p" />
+              <marker date="1517546809620" expanded="true" signature="2102:2109" ph="i" />
+              <marker date="1517546809620" expanded="true" signature="2119:2147" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="2169:2175" ph="m" />
+              <marker date="1517546809620" expanded="true" signature="2189:2192" ph="y" />
+              <marker date="1517546809620" expanded="true" signature="2204:2211" ph="s" />
+              <marker date="1517546809620" expanded="true" signature="2220:2227" ph="i" />
+              <marker date="1517546809620" expanded="true" signature="2276:2300" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="2322:2346" ph="t" />
+              <marker date="1517546809620" expanded="true" signature="2357:2373" ph="/" />
+              <marker date="1517546809620" expanded="true" signature="2384:2388" ph="0" />
+              <marker date="1517546809620" expanded="true" signature="2399:2413" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="2547:2591" ph="S" />
+              <marker date="1517546809620" expanded="true" signature="2606:2648" ph="&quot;" />
+              <marker date="1517546809620" expanded="true" signature="2660:2677" ph="i" />
+              <marker date="1517546809620" expanded="true" signature="2689:2705" ph="c" />
+              <marker date="1517546809620" expanded="true" signature="3206:3253" ph="I" />
+              <marker date="1517546809620" expanded="true" signature="3261:3292" ph="&quot;" />
+              <marker date="1517546809620" expanded="true" signature="3313:3322" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="3329:3341" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="3348:3363" ph="b" />
+              <marker date="1517546809620" expanded="true" signature="3372:3376" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="3729:4118" ph="db&#10;├── README.md&#10;├── d....yml " />
+              <marker date="1517546809620" expanded="true" signature="4259:4283" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="4305:4329" ph="t" />
+              <marker date="1517546809620" expanded="true" signature="4340:4356" ph="/" />
+              <marker date="1517546809620" expanded="true" signature="4367:4371" ph="0" />
+              <marker date="1517546809620" expanded="true" signature="4382:4396" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="4832:4856" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="4878:4892" ph="m" />
+              <marker date="1517546809620" expanded="true" signature="4904:4920" ph="/" />
+              <marker date="1517546809620" expanded="true" signature="4932:4936" ph="0" />
+              <marker date="1517546809620" expanded="true" signature="4946:4960" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="5077:5091" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="5108:5130" ph="m" />
+              <marker date="1517546809620" expanded="true" signature="5309:5314" ph="2" />
+              <marker date="1517546809620" expanded="true" signature="5330:5339" ph="1" />
+              <marker date="1517546809620" expanded="true" signature="5591:5613" ph="A" />
+              <marker date="1517546809620" expanded="true" signature="5632:5644" ph="p" />
+              <marker date="1517546809620" expanded="true" signature="5656:5688" ph="/" />
+              <marker date="1517546809620" expanded="true" signature="5702:5714" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="5723:5751" ph="A" />
+              <marker date="1517546809620" expanded="true" signature="5774:5786" ph="d" />
+              <marker date="1517546809620" expanded="true" signature="5798:5821" ph="/" />
+              <marker date="1517546809620" expanded="true" signature="5834:5841" ph="a" />
+              <marker date="1517546809620" expanded="true" signature="5854:5861" ph="a" />
+              <marker date="1517546809620" expanded="true" signature="5870:5881" ph="e" />
+              <marker date="1517546809620" expanded="true" signature="5898:5914" ph="p" />
+              <marker date="1517546809620" expanded="true" signature="6215:6227" ph="r" />
+              <marker date="1517546809620" expanded="true" signature="6244:6264" ph="p" />
+              <marker date="1517546809620" expanded="true" signature="6436:6445" ph="1" />
+              <marker date="1517546809620" expanded="true" signature="6548:6561" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="6571:6574" ph="a" />
+              <marker date="1517546809620" expanded="true" signature="6585:6589" ph="t" />
+              <marker date="1517546809620" expanded="true" signature="6610:6620" ph="1" />
+              <marker date="1517546809620" expanded="true" signature="6636:6639" ph="a" />
+              <marker date="1517546809620" expanded="true" signature="6680:6697" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="6707:6709" ph="d" />
+              <marker date="1517546809620" expanded="true" signature="6720:6724" ph="t" />
+              <marker date="1517546809620" expanded="true" signature="6752:6759" ph="0" />
+              <marker date="1517546809620" expanded="true" signature="6775:6777" ph="d" />
+              <marker date="1517546809620" expanded="true" signature="8111:8155" ph="S" />
+              <marker date="1517546809620" expanded="true" signature="8170:8212" ph="&quot;" />
+              <marker date="1517546809620" expanded="true" signature="9154:9169" ph="j" />
+              <marker date="1517546809620" expanded="true" signature="9179:9184" ph="v" />
+              <marker date="1517546809620" expanded="true" signature="9671:9860" ph="{...}" />
+              <marker date="1517546809620" expanded="true" signature="9737:9793" ph="{...}" />
+              <marker date="1517546809620" expanded="true" signature="9936:9949" ph="C" />
+              <marker date="1517546809620" expanded="true" signature="9959:9962" ph="a" />
+              <marker date="1517546809620" expanded="true" signature="9973:9977" ph="t" />
+              <marker date="1517546809620" expanded="true" signature="9994:9997" ph="a" />
+              <marker date="1517546809620" expanded="true" signature="10004:10019" ph="j" />
+              <marker date="1517546809620" expanded="true" signature="10539:10615" ph="template: &lt;3 keys&gt;" />
+              <marker date="1517546809620" expanded="true" signature="10555:10579" ph="templates…od.conf.j2" />
+              <marker date="1517546809620" expanded="true" signature="10587:10603" ph="/etc/mongod.conf" />
+              <marker date="1517546809620" expanded="true" signature="10611:10615" ph="0644" />
+              <marker date="1517546809620" expanded="true" signature="10622:10628" ph="db-tag" />
+              <marker date="1517546809620" expanded="true" signature="10811:10870" ph="storage: &lt;3 keys&gt;" />
+              <marker date="1517546809620" expanded="true" signature="10829:10845" ph="/var/lib/mongodb" />
+              <marker date="1517546809620" expanded="true" signature="10866:10870" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="10902:10983" ph="systemLog: &lt;3 keys&gt;" />
+              <marker date="1517546809620" expanded="true" signature="10927:10931" ph="file" />
+              <marker date="1517546809620" expanded="true" signature="10944:10948" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="10956:10983" ph="/var/log/…mongod.log" />
+              <marker date="1517546809620" expanded="true" signature="11005:11081" ph="net: &lt;2 keys&gt;" />
+              <marker date="1517546809620" expanded="true" signature="11011:11052" ph="port: {0 keys}" />
+              <marker date="1517546809620" expanded="true" signature="11020:11049" ph="mongo_por…t('27017')" />
+              <marker date="1517546809620" expanded="true" signature="11054:11081" ph="bindIp: {0 keys}" />
+              <marker date="1517546809620" expanded="true" signature="11065:11078" ph="mongo_bind_ip" />
+              <marker date="1517546809620" expanded="true" signature="11116:11201" ph="handlers: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="11135:11149" ph="restart mongod" />
+              <marker date="1517546809620" expanded="true" signature="11159:11163" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="11174:11201" ph="name=mong…=restarted" />
+              <marker date="1517546809620" expanded="true" signature="11470:11492" ph="Add unit …e for Puma" />
+              <marker date="1517546809620" expanded="true" signature="11502:11506" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="11520:11538" ph="files/puma.service" />
+              <marker date="1517546809620" expanded="true" signature="11546:11578" ph="/etc/syst…ma.service" />
+              <marker date="1517546809620" expanded="true" signature="11586:11593" ph="app-tag" />
+              <marker date="1517546809620" expanded="true" signature="11595:11635" ph="notify: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="11603:11614" ph="reload puma" />
+              <marker date="1517546809620" expanded="true" signature="11624:11635" ph="enable puma" />
+              <marker date="1517546809620" expanded="true" signature="11645:11649" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="11660:11681" ph="name=puma…nabled=yes" />
+              <marker date="1517546809620" expanded="true" signature="11689:11696" ph="app-tag" />
+              <marker date="1517546809620" expanded="true" signature="11766:11777" ph="reload puma" />
+              <marker date="1517546809620" expanded="true" signature="11787:11791" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="11802:11826" ph="name=puma…e=reloaded" />
+              <marker date="1517546809620" expanded="true" signature="12089:12117" ph="Add confi…connection" />
+              <marker date="1517546809620" expanded="true" signature="12135:12157" ph="templates…_config.j2" />
+              <marker date="1517546809620" expanded="true" signature="12165:12188" ph="$PROJECT_DIR$/../../app…/db_config" />
+              <marker date="1517546809620" expanded="true" signature="12196:12203" ph="app-tag" />
+              <marker date="1517546809620" expanded="true" signature="12309:12353" ph="Fetch the…ation code" />
+              <marker date="1517546809620" expanded="true" signature="12367:12418" ph="https://g…reddit.git" />
+              <marker date="1517546809620" expanded="true" signature="12426:12446" ph="$PROJECT_DIR$/../../appuser/reddit" />
+              <marker date="1517546809620" expanded="true" signature="12457:12465" ph="monolith" />
+              <marker date="1517546809620" expanded="true" signature="12473:12483" ph="deploy-tag" />
+              <marker date="1517546809620" expanded="true" signature="12485:12529" ph="notify: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="12493:12505" ph="restart puma" />
+              <marker date="1517546809620" expanded="true" signature="12515:12529" ph="Bundle install" />
+              <marker date="1517546809620" expanded="true" signature="12548:12555" ph="present" />
+              <marker date="1517546809620" expanded="true" signature="12564:12584" ph="$PROJECT_DIR$/../../appuser/reddit" />
+              <marker date="1517546809620" expanded="true" signature="12592:12602" ph="deploy-tag" />
+              <marker date="1517546809620" expanded="true" signature="12655:12667" ph="restart puma" />
+              <marker date="1517546809620" expanded="true" signature="12677:12681" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="12692:12717" ph="name=puma…=restarted" />
+              <marker date="1517546809620" expanded="true" signature="12851:12868" ph="Configure MongoDB" />
+              <marker date="1517546809620" expanded="true" signature="12877:12879" ph="db" />
+              <marker date="1517546809620" expanded="true" signature="12887:12893" ph="db-tag" />
+              <marker date="1517546809620" expanded="true" signature="12903:12907" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="12931:12938" ph="0.0.0.0" />
+              <marker date="1517546809620" expanded="true" signature="12940:12980" ph="tasks: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="12956:12980" ph="Change mo…onfig file" />
+              <marker date="1517546809620" expanded="true" signature="12998:13022" ph="templates…od.conf.j2" />
+              <marker date="1517546809620" expanded="true" signature="13030:13046" ph="/etc/mongod.conf" />
+              <marker date="1517546809620" expanded="true" signature="13054:13058" ph="0644" />
+              <marker date="1517546809620" expanded="true" signature="13068:13082" ph="restart mongod" />
+              <marker date="1517546809620" expanded="true" signature="13084:13117" ph="handlers: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="13103:13117" ph="restart mongod" />
+              <marker date="1517546809620" expanded="true" signature="13128:13155" ph="name=mong…=restarted" />
+              <marker date="1517546809620" expanded="true" signature="13198:13221" ph="ansible/r…t_app2.yml" />
+              <marker date="1517546809620" expanded="true" signature="13230:13243" ph="Configure App" />
+              <marker date="1517546809620" expanded="true" signature="13252:13255" ph="app" />
+              <marker date="1517546809620" expanded="true" signature="13263:13270" ph="app-tag" />
+              <marker date="1517546809620" expanded="true" signature="13280:13284" ph="true" />
+              <marker date="1517546809620" expanded="true" signature="13302:13312" ph="10.132.0.2" />
+              <marker date="1517546809620" expanded="true" signature="13314:13352" ph="tasks: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="13330:13352" ph="Add unit …e for Puma" />
+              <marker date="1517546809620" expanded="true" signature="13366:13384" ph="files/puma.service" />
+              <marker date="1517546809620" expanded="true" signature="13392:13424" ph="/etc/syst…ma.service" />
+              <marker date="1517546809620" expanded="true" signature="13426:13483" ph="notify: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="13434:13445" ph="reload puma" />
+              <marker date="1517546809620" expanded="true" signature="13455:13483" ph="Add confi…connection" />
+              <marker date="1517546809620" expanded="true" signature="13501:13523" ph="templates…_config.j2" />
+              <marker date="1517546809620" expanded="true" signature="13531:13554" ph="$PROJECT_DIR$/../../app…/db_config" />
+              <marker date="1517546809620" expanded="true" signature="13563:13570" ph="appuser" />
+              <marker date="1517546809620" expanded="true" signature="13572:13607" ph="group: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="13579:13586" ph="appuser" />
+              <marker date="1517546809620" expanded="true" signature="13596:13607" ph="enable puma" />
+              <marker date="1517546809620" expanded="true" signature="13618:13639" ph="name=puma…nabled=yes" />
+              <marker date="1517546809620" expanded="true" signature="13641:13671" ph="handlers: &lt;1 item&gt;" />
+              <marker date="1517546809620" expanded="true" signature="13660:13671" ph="reload puma" />
+              <marker date="1517546809620" expanded="true" signature="13682:13706" ph="name=puma…e=reloaded" />
+              <marker date="1517546809620" expanded="true" signature="14500:14593" ph="provisioners: [1 item]" />
+              <marker date="1517546809620" expanded="true" signature="14530:14539" ph="ansible" />
+              <marker date="1517546809620" expanded="true" signature="14559:14586" ph="../ansibl…er_app.yml" />
+              <marker date="1517546809620" expanded="true" signature="14652:14744" ph="provisioners: [1 item]" />
+              <marker date="1517546809620" expanded="true" signature="14682:14691" ph="ansible" />
+              <marker date="1517546809620" expanded="true" signature="14711:14737" ph="../ansibl…ker_db.yml" />
+            </folding>
+          </first_editor>
+          <second_editor />
         </state>
       </provider>
     </entry>
