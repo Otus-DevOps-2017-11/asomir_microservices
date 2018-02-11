@@ -1,3 +1,143 @@
+# Homework 16
+
+### Новая структура репозитория
+• Теперь наше приложение состоит из трех компонент:
+• post-py - сервис отвечающий за написание постов \
+• comment - сервис отвечающий за написание комментариев \
+• ui - веб-интерфейс, работающий с другими сервисами
+
+
+#### 1. Dockerfile post-py
+```docker
+FROM python:3.6.0-alpine
+
+WORKDIR /app
+ADD . /app
+
+RUN pip install -r /app/requirements.txt
+
+ENV POST_DATABASE_HOST post_db
+ENV POST_DATABASE posts
+
+ENTRYPOINT ["python3", "post_app.py"]
+```
+#### 2. ./comment/Dockerfile
+
+```docker
+FROM ruby:2.2
+RUN apt-get update -qq && apt-get install -y build-essential
+ENV APP_HOME /app
+RUN mkdir $APP_HOME
+WORKDIR $APP_HOME
+ADD Gemfile* $APP_HOME/
+RUN bundle install
+COPY . $APP_HOME
+ENV COMMENT_DATABASE_HOST comment_db
+ENV COMMENT_DATABASE comments
+CMD ["puma"]
+```
+
+#### 3.  ./ui/Dockerfile
+
+```docker
+FROM ruby:2.2
+RUN apt-get update -qq && apt-get install -y build-essential
+ENV APP_HOME /app
+RUN mkdir $APP_HOME
+WORKDIR $APP_HOME
+ADD Gemfile* $APP_HOME/
+RUN bundle install
+ADD . $APP_HOME
+ENV POST_SERVICE_HOST post
+ENV POST_SERVICE_PORT 5000
+ENV COMMENT_SERVICE_HOST comment
+ENV COMMENT_SERVICE_PORT 9292
+CMD ["puma"]
+```
+#### 4. Скачали образ монги последней версии:
+
+```bash
+> docker pull mongo:latest
+``` 
+#### 5. Запустили образа с сервисами
+
+```bash
+> docker build -t <your-dockerhub-login>/post:1.0 ./post-py
+> docker build -t <your-dockerhub-login>/comment:1.0 ./comment
+> docker build -t <your-dockerhub-login>/ui:1.0 ./ui
+```
+Сборка ЮИ началась не с первого шага, потому как предыдущие шаги уже были проделаны при старте Каммента 
+Памятка: 
+
+Что мы сделали?
+• Создали bridge-сеть для контейнеров, так как сетевые
+алиасы не работают в сети по умолчанию ( о сетях в
+Docker мы еще поговорим на следующем занятии)
+• Запустили наши контейнеры в этой сети
+• Добавили сетевые алиасы контейнерам
+• Сетевые алиасы могут быть использованы для сетевых
+соединений, как доменные имена
+
+#### 6. Поменяли  ./ui/Dockerfile - собираем образ с последней убунтой
+
+````docker
+FROM ubuntu:16.04
+RUN apt-get update \
+ && apt-get install -y ruby-full ruby-dev build-essential \
+ && gem install bundler --no-ri --no-rdoc
+ENV APP_HOME /app
+RUN mkdir $APP_HOME
+WORKDIR $APP_HOME
+ADD Gemfile* $APP_HOME/
+RUN bundle install
+ADD . $APP_HOME
+ENV POST_SERVICE_HOST post
+ENV POST_SERVICE_PORT 5000
+ENV COMMENT_SERVICE_HOST comment
+ENV COMMENT_SERVICE_PORT 9292
+CMD ["puma"]
+````
+
+И пометили его как версия 2 
+
+```bash
+> docker build -t <your-login>/ui:2.0 ./ui
+```
+#### 7. Прикончили старые версии контейнеров и создадим новые с новой версией ЮИ
+
+```bash
+> docker kill $(docker ps -q)
+> docker run -d --network=reddit \
+ --network-alias=post_db --network-alias=comment_db mongo:latest
+> docker run -d --network=reddit \
+ --network-alias=post <your-dockerhub—login>/post:1.0
+> docker run -d --network=reddit \
+ --network-alias=comment <your-dockerhub-login>/comment:1.0
+> docker run -d --network=reddit \
+ -p 9292:9292 <your-dockerhub-login>/ui:2.0
+```
+#### 8. Создадим docker volume
+```bash
+> docker volume create reddit_db
+```
+
+и подключим его к базе данных, Выключив предварительно старые копии контейнеров
+
+```bash
+> docker kill $(docker ps -q)
+> docker run -d --network=reddit —network-alias=post_db \
+ --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+> docker run -d --network=reddit \
+ --network-alias=post <your-login>/post:1.0
+> docker run -d --network=reddit \
+ --network-alias=comment <your-login>/comment:1.0
+> docker run -d --network=reddit \
+ -p 9292:9292 <your-login>/ui:2.0
+```
+
+#### 9. Теперь посты сохраняются после пересобирания образов. 
+
+
 # Homework 15
 
 ####1. Создали новый проект в GCP docker-194414 и создали докер хост: 

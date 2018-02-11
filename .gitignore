@@ -11,3 +11,4 @@ jdauphant.nginx
 *.pyc
 .molecule
 .cache
+docker-monolith/
