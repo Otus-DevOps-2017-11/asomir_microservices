@@ -1,0 +1,22 @@
+---
+# Examples from Ansible Playbooks
+- name: Install base packages
+  apt: name={{ item }} state=installed
+  with_items:
+    - htop
+    - git
+    - python-pip
+    - python3-pip
+  tags:
+    - packages
+
+- name: Upgrade pip
+  pip: name=pip state=latest
+  tags:
+    - packages
+
+- name: Create user
+  user:
+    name: "{{ deploy_user }}"
+    comment: "Used to deploy Gitlab"
+    state: present

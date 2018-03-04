@@ -1,0 +1,7 @@
+---
+- name: docker-compose via ansible docker_service
+  tags: "docker"
+  docker_service:
+    files: docker-compose.yml
+    project_src: /srv/gitlab/
+    project_name: "gitlab-service"

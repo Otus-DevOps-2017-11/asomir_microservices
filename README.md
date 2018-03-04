@@ -1,3 +1,514 @@
+# Homework 19
+
+## Устройство Gitlab CI.
+## Построение процесса непрерывной интеграции
+
+### Инсталляция Gitlab
+
+#### Создаем виртуальную машину в terraform
+
+#####1. Нам потребуется создать в Google Cloud новую виртуальную машину со следующими параметрами
+
+ - 1 CPU
+ - 3.75GB RAM
+ - 50-100 GB HDD
+ - Ubuntu 16.04
+ 
+ ```hcl-terraform
+ 
+ # Подключаемся к гуглу к нашему проекту в регионе eur
+provider "google" {
+  version = "1.4.0"
+  project = "${var.project}"
+  region  = "${var.region}"
+}
+
+# Подключение SSH ключей для пользователя asomirl 
+resource "google_compute_project_metadata" "ssh-asomirl" {
+  metadata {
+    ssh-keys = "${var.gitlab_admin}:${file(var.public_key_path)}"
+  }
+}
+
+# Создаём в west-1b машину n1-standard-1	Standard machine type with 1 virtual CPU and 3.75 GB of memory.
+resource "google_compute_instance" "gitlab" {
+  name         = "gitlab"
+  machine_type = "n1-standard-1"
+  zone         = "${var.zone}"
+# Прибавили теги, чтобы ходить по SSH  
+  tags         = ["docker-host", "default-allow-ssh"]
+
+  # определение загрузочного диска 50Gb
+  boot_disk {
+    initialize_params {
+# По умолчанию "ubuntu-1604-lts"    
+      image = "${var.disk_image}"
+      size  = 50
+    }
+  }
+  # определение сетевого интерфейса
+  network_interface {
+    # сеть, к которой присоединить данный интерфейс
+    network = "default"
+
+    # использовать ephemeral IP для доступа из Интернет
+    access_config {}
+  }
+  # включаем подключение по ssh с путём к приватному ключу
+  connection {
+    type        = "ssh"
+    user        = "${var.gitlab_admin}"
+    agent       = false
+    private_key = "${file(var.private_key_path)}"
+  }
+}
+
+# Создание правила для firewall открываем для начала все порты и протокол ICMP
+resource "google_compute_firewall" "docker-host-allow" {
+  name = "docker-host-allow"
+
+  # Название сети, в которой действует правило
+  network = "default"
+
+  # Какой доступ разрешить
+  allow {
+    protocol = "tcp"
+    ports    = ["0-65535"]
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+
+  # Каким адресам разрешаем доступ
+  source_ranges = ["0.0.0.0/0"]
+
+  # Правило применимо для инстансов с тегом …
+  target_tags = ["docker-host"]
+}
+
+# Создаём внешний адрес для машины
+resource "google_compute_address" "gitlab_ip" {
+  name = "gitlab-ip"
+}
+
+# Открываем порт 22
+resource "google_compute_firewall" "firewall_ssh" {
+  name    = "gitlab-allow-ssh"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = "${var.source_ranges}"
+}
+```
+##### 2. Затем ипортируем правило для терраформа доступ по умолчанию к SSH
+В папке terraform-gitlab выполняем
+```bash
+$ terraform import google_compute_firewall.firewall_ssh defaultallow-ssh
+``` 
+
+#### Настраиваем виртуальную Машину с помощью Ansible
+
+В файле inventory указываем имя хоста gitlab и его ip, 
+
+```buildoutcfg
+gitlab ansible_host=35.195.130.13
+```
+Также ip внесём в /roles/gitlab/defaults/main.yml, там же укажем имя нашего пользователя и папку для установки GitLab
+
+```yamlex
+deploy_user: asomirl
+gitlab_ip: 35.195.130.13
+gitlab_folder: /srv/gitlab
+```
+
+##### 3. Нам необходимо установить докер и докер композ. Из-за присущей лени мы тупо скачиваем ansible роль, которая ставит обадва сразу:
+
+В папке с ролями выполняем скачивание роли ansible-galaxy nickjj.docker
+
+```bash
+ansible-galaxy install nickjj.docker -p ./ --force
+```
+
+
+
+##### 4. Создадим роль gitlab с готовой структурой папок
+
+```bash
+ansible-galaxy init gitlab
+```
+##### 5. В Роли gitlab в тасках добавляем установку Python и обновляшечки:
+
+```yamlex
+# tasks file for gitlab/
+  - name: Install python for Ansible
+    raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal && apt install -y python-apt )
+    become: true
+    changed_when: false
+```
+
+##### 6. После тестирования и попытки запускать наш докер контейнер выпадает ошибка отсутствия docker-py, поэтому было принято ставить докер и пипы вручную.
+В файле install_pip.yml устанавливаем необходимые нам пипули с хтопом, гитом на всякий, питошами. Также указываем нашего пользователя asomirl как деплой юзверя
+
+```yamlex
+# Examples from Ansible Playbooks
+- name: Install base packages
+  apt: name={{ item }} state=installed
+  with_items:
+    - htop #чтобы было удобно следить за установкой гитлаба
+    - git # на всякий пожарный, чтобы выкачивать всякие нужные штуки из гита
+    - python-pip # без этого ничего не работает
+    - python3-pip # так и не понял, нужна ли 3 версия, паходу разберёмся
+  tags:
+    - packages
+
+- name: Upgrade pip # обновляем пипы на самые последние версии
+  pip: name=pip state=latest
+  tags:
+    - packages
+
+- name: Create user
+  user:
+    name: "{{ deploy_user }}" # создадим нашего пользователя на серваке на всякие пожарные 
+    comment: "Used to deploy Gitlab"
+    state: present
+```
+##### 7. Создаём папочки для конфигов, логов и данных нашего гитлаба из-под нашего пользючонка:
+
+create_folders.yml
+```yamlex
+  - name: Creates directoryes
+    file:
+      path: "{{ gitlab_folder }}/config"
+      path: "{{ gitlab_folder }}/data"
+      path: "{{ gitlab_folder }}/logs"
+      state: directory
+      owner: "{{ deploy_user }}"
+      group: "{{ deploy_user }}"
+```
+
+##### 8. Ставим докер ручками как взрослые мальчики: 
+
+install_docker.yml
+
+```yamlex
+- name: ensure repository key is installed
+  apt_key:
+    id: "58118E89F3A912897C070ADBF76221572C52609D"
+    keyserver: "hkp://p80.pool.sks-keyservers.net:80"
+    state: present
+
+- name: ensure docker registry is available
+  # For Ubuntu 16.04 LTS, use this repo instead:
+  apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-xenial main' state=present
+
+- name: ensure docker and dependencies are installed
+  apt: name=docker-engine update_cache=yes
+
+- service: name=docker state=restarted
+```
+
+##### 9. Туда же и жареный хряк. То есть докер-композ (ставим с помощью Пипы, чтобы больше не ругался): 
+
+install_docker_compose.yml
+
+```yamlex
+- name: Install docker python module
+  pip:
+    name: "docker-compose"
+```
+
+##### 10. Создаём ниндзя-темплейт docker-compose.yml.j2
+
+```yamlex
+web:
+  image: 'gitlab/gitlab-ce:latest'
+  restart: always
+  hostname: 'gitlab.example.com'
+  environment:
+    GITLAB_OMNIBUS_CONFIG: |
+      external_url 'http://{{ gitlab_ip }}' # эту штуку берём из папки дефолтс
+  ports:
+    - '80:80'
+    - '443:443'
+    - '2222:22'
+  volumes:
+    - '/srv/gitlab/config:/etc/gitlab'
+    - '/srv/gitlab/logs:/var/log/gitlab'
+    - '/srv/gitlab/data:/var/opt/gitlab'
+```
+##### 11. ...и копируем его содержимое на сервер гитлаб в приготовленную папку /srv/gitlab/ в файл docker-compose.yml
+
+omnibus.yml
+
+```yamlex
+- name: Change mongo config file
+  template:
+    src: templates/docker-compose.yml.j2
+    dest: /srv/gitlab/docker-compose.yml
+    mode: 0644
+```
+
+##### 12. И запускаем в докер-композе наш docker-compose.yml
+
+compose.yml
+
+```yamlex
+- name: docker-compose via ansible docker_service
+  tags: "docker"
+  docker_service:
+    files: docker-compose.yml
+    project_src: /srv/gitlab/
+    project_name: "gitlab-service"
+```
+
+##### 13. Инклюдим все наши файлики в файл main.yml в папке tasks:
+
+```yamlex
+ - include: install_py.yml
+ - include: install_pip.yml
+ - include: create_folders.yml
+ - include: install_docker.yml
+ - include: install_docker_compose.yml
+ - include: omnibus.yml
+ - include: compose.yml
+```
+
+
+#### Запускаем развёртывание GitLab
+
+##### 14. Запускаем из папки gitlab-terraform создание виртуальной машины для GitLab
+
+```bash
+terraform apply
+```
+
+##### 15. Запускаем конфигурирование и установку необоходимых пакетов и компонентов для GitLab с помощью Ansible:
+
+```bash
+cd ~/asomir_microservices/ansible-gitlab/roles
+ansible-playbook gitlab.yml --vv
+```
+
+##### 16. И бешено радуемся установке. Пока ставится, мы заходим по ssh на созданную Машину GitLab запускаем htop и радуемся циферкам.
+
+```bash
+ssh asomirl@35.195.130.13
+```
+
+```bash
+htop
+```
+##### 17. Переходим в браузере по айпи 35.195.130.13 и через некоторое время видим морду лисы. Вводим дважды придуманный пароль, затем вводим имя root и этот пароль, попадаем на приветственную Страницу гитлаба
+
+ 
+
+
+# Homework 17
+
+## Работа с сетью в Docker
+
+### None network driver
+
+1. Запустим контейнер с использованием none-драйвера, с временем жизни 100 секунд, по истечении автоматически удаляется. В качестве образа используем joffotron/docker-net-tools, в него 
+входят утилиты bind-tools, net-tools и curl.
+
+```bash
+docker run --network none --rm -d --name net_test joffotron/docker-net-tools -c "sleep 100"
+docker exec -ti net_test ifconfig 
+```
+
+### Памятка
+
+```markdown
+В результате, видим:
+• что внутри контейнера из сетевых интерфейсов существует
+только loopback.
+• сетевой стек самого контейнера работает (ping localhost), но без
+возможности контактировать с внешним миром.
+• Значит, можно даже запускать сетевые сервисы внутри такого
+контейнера, но лишь для локальных экспериментов
+(тестирование, контейнеры для выполнения разовых задач и
+т.д.)
+```
+
+
+2. Запустили контейнер в сетевом пространстве docker-хоста
+
+```bash
+docker run --network host --rm -d --name net_test joffotron/docker-net-tools -c "sleep 100"
+```
+
+3. Вывод команды docker exec -ti net_test ifconfig 
+
+```markdown
+br-9847ceaf8390 Link encap:Ethernet  HWaddr 02:42:1A:94:FA:64  
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:1aff:fe94:fa64%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1731 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1795 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:145258 (141.8 KiB)  TX bytes:283122 (276.4 KiB)
+
+docker0   Link encap:Ethernet  HWaddr 02:42:27:F2:53:24  
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:27ff:fef2:5324%32531/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:18460 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:28983 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1440883 (1.3 MiB)  TX bytes:346814939 (330.7 MiB)
+
+ens4      Link encap:Ethernet  HWaddr 42:01:0A:84:00:02  
+          inet addr:10.132.0.2  Bcast:10.132.0.2  Mask:255.255.255.255
+          inet6 addr: fe80::4001:aff:fe84:2%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1460  Metric:1
+          RX packets:146266 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:112334 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:908455582 (866.3 MiB)  TX bytes:254880160 (243.0 MiB)
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1%32531/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:151209 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:151209 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:20506793 (19.5 MiB)  TX bytes:20506793 (19.5 MiB)
+
+veth09faf80 Link encap:Ethernet  HWaddr 92:7D:D2:89:4A:BA  
+          inet6 addr: fe80::907d:d2ff:fe89:4aba%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:20324 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:10393 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1922371 (1.8 MiB)  TX bytes:3072704 (2.9 MiB)
+
+veth70277fa Link encap:Ethernet  HWaddr 5E:74:D5:EE:84:5B  
+          inet6 addr: fe80::5c74:d5ff:feee:845b%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:35274 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:70262 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:10678546 (10.1 MiB)  TX bytes:6665213 (6.3 MiB)
+
+vethda70fe7 Link encap:Ethernet  HWaddr 9E:6E:BB:55:B3:17  
+          inet6 addr: fe80::9c6e:bbff:fe55:b317%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:49921 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:25008 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:4742482 (4.5 MiB)  TX bytes:7615475 (7.2 MiB)
+
+vethe3618d9 Link encap:Ethernet  HWaddr A2:15:EC:B9:20:A0  
+          inet6 addr: fe80::a015:ecff:feb9:20a0%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:70 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:110 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:15456 (15.0 KiB)  TX bytes:14755 (14.4 KiB)
+
+```
+
+Вывод команды docker exec -ti net_test ifconfig 
+
+```markdown
+br-9847ceaf8390 Link encap:Ethernet  HWaddr 02:42:1a:94:fa:64  
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:1aff:fe94:fa64/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1731 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1795 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:145258 (145.2 KB)  TX bytes:283122 (283.1 KB)
+
+docker0   Link encap:Ethernet  HWaddr 02:42:27:f2:53:24  
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:27ff:fef2:5324/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:18460 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:28983 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1440883 (1.4 MB)  TX bytes:346814939 (346.8 MB)
+
+ens4      Link encap:Ethernet  HWaddr 42:01:0a:84:00:02  
+          inet addr:10.132.0.2  Bcast:10.132.0.2  Mask:255.255.255.255
+          inet6 addr: fe80::4001:aff:fe84:2/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1460  Metric:1
+          RX packets:146332 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:112405 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:908469183 (908.4 MB)  TX bytes:254894834 (254.8 MB)
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:151209 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:151209 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:20506793 (20.5 MB)  TX bytes:20506793 (20.5 MB)
+
+veth09faf80 Link encap:Ethernet  HWaddr 92:7d:d2:89:4a:ba  
+          inet6 addr: fe80::907d:d2ff:fe89:4aba/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:20364 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:10413 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1926171 (1.9 MB)  TX bytes:3078804 (3.0 MB)
+
+veth70277fa Link encap:Ethernet  HWaddr 5e:74:d5:ee:84:5b  
+          inet6 addr: fe80::5c74:d5ff:feee:845b/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:35344 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:70402 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:10699896 (10.6 MB)  TX bytes:6678513 (6.6 MB)
+
+vethda70fe7 Link encap:Ethernet  HWaddr 9e:6e:bb:55:b3:17  
+          inet6 addr: fe80::9c6e:bbff:fe55:b317/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:50021 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:25058 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:4751982 (4.7 MB)  TX bytes:7630725 (7.6 MB)
+
+vethe3618d9 Link encap:Ethernet  HWaddr a2:15:ec:b9:20:a0  
+          inet6 addr: fe80::a015:ecff:feb9:20a0/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:70 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:110 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:15456 (15.4 KB)  TX bytes:14755 (14.7 KB)
+
+```
+
+Видим, что значения совпадают, кроме того, что в первом случае сетевуха называется s4, во втором ens4
+
+4. Запустили docker run --network host -d nginx несколько раз, а контейнер всё равно один запущен. Это фишка, а не баг.
+
+5. На docker-host машине выполнили команду:
+
+```bash
+> sudo ln -s /var/run/docker/netns /var/run/netns
+
+```
+Теперь можно просматривать существующие неймспейсы с помощью
+
+```bash
+> sudo ip netns
+```
+
+#### Примечание: ip netns exec <namespace> <command> - позволит выполнять команды в выбранном namespace
+
+
+
 # Homework 16
 
 ### Новая структура репозитория
