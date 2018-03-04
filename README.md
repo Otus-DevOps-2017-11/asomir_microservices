@@ -305,7 +305,204 @@ htop
 ```
 ##### 17. Переходим в браузере по айпи 35.195.130.13 и через некоторое время видим морду лисы. Вводим дважды придуманный пароль, затем вводим имя root и этот пароль, попадаем на приветственную Страницу гитлаба
 
- 
+### Настройки GitLab
+
+#### Создаём проект в GitLab
+
+##### 18. Создали группу homework и в ней новый проект example.
+##### 19. Добавили remote в asomir_microservices
+
+```bash
+git checkout -b docker-6
+git remote add gitlab http://35.195.130.13/homework/example.git
+git push gitlab docker-6
+```
+##### 20. ДоБавили в репозиторий файл .gitlab-ci.yml
+
+```yamlex
+stages:
+  - build
+  - test
+  - deploy
+
+build_job:
+  stage: build
+  script:
+    - echo 'Building'
+
+test_unit_job:
+  stage: test
+  script:
+    - echo 'Testing 1'
+
+test_integration_job:
+  stage: test
+  script:
+    - echo 'Testing 2'
+
+deploy_job:
+  stage: deploy
+  script:
+    - echo 'Deploy'
+```
+
+И запушили его в гитлаб в наш проект
+
+```bash
+git add .gitlab-ci.yml
+git commit -m 'add pipeline definition'
+git push gitlab docker-6
+```
+
+##### 21. ПоЛучили токен 
+
+```buildoutcfg
+Specify the following URL during the Runner setup: http://35.195.130.13/
+Use the following registration token during setup: qhRTVTPL5kmP4N9Tx5_U
+```
+
+##### 22. Выполнем команду на сервере GitLab:
+
+```bash
+sudo docker run -d --name gitlab-runner --restart always \
+-v /srv/gitlab-runner/config:/etc/gitlab-runner \
+-v /var/run/docker.sock:/var/run/docker.sock \
+gitlab/gitlab-runner:latest
+```
+##### 23. Регистриуем Runner, это можно сделать командой
+
+```bash
+docker exec -it gitlab-runner gitlab-runner register
+```
+
+и отвечаем на вопросы: 
+
+```bash
+Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/):
+http://35.195.130.13/
+Please enter the gitlab-ci token for this runner:
+qhRTVTPL5kmP4N9Tx5_U
+Please enter the gitlab-ci description for this runner:
+[38689f5588fe]: my-runner
+Please enter the gitlab-ci tags for this runner (comma separated):
+linux,xenial,ubuntu,docker
+Whether to run untagged builds [true/false]:
+[false]: true
+Whether to lock the Runner to current project [true/false]:
+[true]: false
+Please enter the executor:
+docker
+Please enter the default Docker image (e.g. ruby:2.1):
+alpine:latest
+Runner registered successfully.
+```
+
+В итоге в настройка появился новый runner.
+
+
+### Тестируем reddit
+
+#### Добавим тестирование приложения reddit в pipeline
+
+##### 24. Добавим исходный код reddit в репозиторий
+
+```bash
+ git clone https://github.com/express42/reddit.git && rm -rf ./reddit/.git
+ git add reddit/
+ git commit -m “Add reddit app”
+ git push gitlab docker-6
+```
+
+##### 25. Изменим описание пайплайна в .gitlab-ci.yml
+
+```yamlex
+image: ruby:2.4.2
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+DATABASE_URL: 'mongodb://mongo/user_posts'
+before_script:
+  - cd reddit
+  - bundle install
+
+build_job:
+  stage: build
+  script:
+    - echo 'Building'
+
+test_unit_job:
+  stage: test
+  services:
+    - mongo:latest
+  script:
+    - ruby simpletest.rb
+
+test_integration_job:
+  stage: test
+  script:
+    - echo 'Testing 2'
+
+deploy_job:
+  stage: deploy
+  script:
+    - echo 'Deploy'
+```
+
+##### 26. Создали в папке reddit файл simpletest.rb на который ссылается pipeline
+
+```yamlex
+require_relative './app'
+require 'test/unit'
+require 'rack/test'
+
+set :environment, :test
+
+class MyAppTest < Test::Unit::TestCase
+  include Rack::Test::Methods
+
+  def app
+    Sinatra::Application
+  end
+
+  def test_get_request
+    get '/'
+    assert last_response.ok?
+  end
+
+```
+
+##### 27. В Gemfile добавили gem 'rack-test'
+
+reddit\Gemfile
+
+```python
+source 'https://rubygems.org'
+
+gem 'sinatra'
+gem 'haml'
+gem 'bson_ext'
+gem 'bcrypt'
+gem 'puma'
+gem 'mongo'
+gem 'json'
+gem 'rack-test'
+
+group :development do
+    gem 'capistrano',         require: false
+    gem 'capistrano-rvm',     require: false
+    gem 'capistrano-bundler', require: false
+    gem 'capistrano3-puma',   require: false
+end
+
+```
+
+Теперь на каждое изменение в коде приложения будет запущен тест.
+
+##### 28. Пушим всё в ГитЛаб и набюдаем, как ревьюверы whitew1nd (Yury Ignatov) и postgred (Andrey Aleksandrov) активно фейспалмят! 
 
 
 # Homework 17
