@@ -504,6 +504,21 @@ end
 
 ##### 28. Пушим всё в ГитЛаб и набюдаем, как ревьюверы whitew1nd (Yury Ignatov) и postgred (Andrey Aleksandrov) активно фейспалмят! 
 
+## Задача со звездой 
+
+### Интеграция GitLab в Slack
+
+#### Настраиваем WebHook
+
+##### 1. Идём по ссылке https://devops-team-otus.slack.com/apps Ищем Incoming Webhook - выбираем Add Configuration
+
+##### 2. Выбираем канал, куда мы хотим получать сообщения или создаём новый канал, нажимаем Add WebHooks Integration
+
+##### 3. Меняем иконку на более удобоваримую Upload An Image. В поле Customize Name вводим имя пользователя, от которого будут приходить Эвенты. Копируем URL Webhook. Save Settings
+https://hooks.slack.com/services/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
+##### 4. Заходим в проект Example - Settings - Integration - Slack Notifications. Кликаем галочку Active, в тригерах #Push указываем название комнаты, куда будет приходить уведомление #alexander-akilin
+Вставляем наш webhook, указываем username - Test And save Changes. Радуемся пришедшим нотификашкам.  
+
 
 # Homework 17
 
