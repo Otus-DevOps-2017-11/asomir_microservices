@@ -1,3 +1,270 @@
+# Homework 17
+
+##### Подключаемся к ранее созданному docker host’у
+
+
+> docker-machine ls
+
+
+```markdown
+NAME          ACTIVE   DRIVER   STATE     URL                         SWARM   DOCKER        ERRORS
+docker-host   *        google   Running   tcp://35.205.170.223:2376           v18.02.0-ce   
+
+```
+
+> eval $(docker-machine env docker-host)
+
+## Работа с сетью в Docker
+
+### None network driver
+
+1. Запустим контейнер с использованием none-драйвера, с временем жизни 100 секунд, по истечении автоматически удаляется. В качестве образа используем joffotron/docker-net-tools, в него 
+входят утилиты bind-tools, net-tools и curl.
+
+```bash
+docker run --network none --rm -d --name net_test joffotron/docker-net-tools -c "sleep 100"
+docker exec -ti net_test ifconfig 
+```
+
+### Памятка
+
+```markdown
+В результате, видим:
+• что внутри контейнера из сетевых интерфейсов существует
+только loopback.
+• сетевой стек самого контейнера работает (ping localhost), но без
+возможности контактировать с внешним миром.
+• Значит, можно даже запускать сетевые сервисы внутри такого
+контейнера, но лишь для локальных экспериментов
+(тестирование, контейнеры для выполнения разовых задач и
+т.д.)
+```
+
+
+2. Запустили контейнер в сетевом пространстве docker-хоста
+
+```bash
+docker run --network host --rm -d --name net_test joffotron/docker-net-tools -c "sleep 100"
+```
+
+3. Вывод команды docker exec -ti net_test ifconfig 
+
+```markdown
+br-9847ceaf8390 Link encap:Ethernet  HWaddr 02:42:1A:94:FA:64  
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:1aff:fe94:fa64%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1731 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1795 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:145258 (141.8 KiB)  TX bytes:283122 (276.4 KiB)
+
+docker0   Link encap:Ethernet  HWaddr 02:42:27:F2:53:24  
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:27ff:fef2:5324%32531/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:18460 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:28983 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1440883 (1.3 MiB)  TX bytes:346814939 (330.7 MiB)
+
+ens4      Link encap:Ethernet  HWaddr 42:01:0A:84:00:02  
+          inet addr:10.132.0.2  Bcast:10.132.0.2  Mask:255.255.255.255
+          inet6 addr: fe80::4001:aff:fe84:2%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1460  Metric:1
+          RX packets:146266 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:112334 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:908455582 (866.3 MiB)  TX bytes:254880160 (243.0 MiB)
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1%32531/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:151209 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:151209 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:20506793 (19.5 MiB)  TX bytes:20506793 (19.5 MiB)
+
+veth09faf80 Link encap:Ethernet  HWaddr 92:7D:D2:89:4A:BA  
+          inet6 addr: fe80::907d:d2ff:fe89:4aba%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:20324 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:10393 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1922371 (1.8 MiB)  TX bytes:3072704 (2.9 MiB)
+
+veth70277fa Link encap:Ethernet  HWaddr 5E:74:D5:EE:84:5B  
+          inet6 addr: fe80::5c74:d5ff:feee:845b%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:35274 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:70262 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:10678546 (10.1 MiB)  TX bytes:6665213 (6.3 MiB)
+
+vethda70fe7 Link encap:Ethernet  HWaddr 9E:6E:BB:55:B3:17  
+          inet6 addr: fe80::9c6e:bbff:fe55:b317%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:49921 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:25008 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:4742482 (4.5 MiB)  TX bytes:7615475 (7.2 MiB)
+
+vethe3618d9 Link encap:Ethernet  HWaddr A2:15:EC:B9:20:A0  
+          inet6 addr: fe80::a015:ecff:feb9:20a0%32531/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:70 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:110 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:15456 (15.0 KiB)  TX bytes:14755 (14.4 KiB)
+
+```
+
+Вывод команды docker exec -ti net_test ifconfig 
+
+```markdown
+br-9847ceaf8390 Link encap:Ethernet  HWaddr 02:42:1a:94:fa:64  
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:1aff:fe94:fa64/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1731 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1795 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:145258 (145.2 KB)  TX bytes:283122 (283.1 KB)
+
+docker0   Link encap:Ethernet  HWaddr 02:42:27:f2:53:24  
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:27ff:fef2:5324/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:18460 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:28983 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1440883 (1.4 MB)  TX bytes:346814939 (346.8 MB)
+
+ens4      Link encap:Ethernet  HWaddr 42:01:0a:84:00:02  
+          inet addr:10.132.0.2  Bcast:10.132.0.2  Mask:255.255.255.255
+          inet6 addr: fe80::4001:aff:fe84:2/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1460  Metric:1
+          RX packets:146332 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:112405 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:908469183 (908.4 MB)  TX bytes:254894834 (254.8 MB)
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:151209 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:151209 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:20506793 (20.5 MB)  TX bytes:20506793 (20.5 MB)
+
+veth09faf80 Link encap:Ethernet  HWaddr 92:7d:d2:89:4a:ba  
+          inet6 addr: fe80::907d:d2ff:fe89:4aba/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:20364 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:10413 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:1926171 (1.9 MB)  TX bytes:3078804 (3.0 MB)
+
+veth70277fa Link encap:Ethernet  HWaddr 5e:74:d5:ee:84:5b  
+          inet6 addr: fe80::5c74:d5ff:feee:845b/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:35344 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:70402 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:10699896 (10.6 MB)  TX bytes:6678513 (6.6 MB)
+
+vethda70fe7 Link encap:Ethernet  HWaddr 9e:6e:bb:55:b3:17  
+          inet6 addr: fe80::9c6e:bbff:fe55:b317/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:50021 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:25058 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:4751982 (4.7 MB)  TX bytes:7630725 (7.6 MB)
+
+vethe3618d9 Link encap:Ethernet  HWaddr a2:15:ec:b9:20:a0  
+          inet6 addr: fe80::a015:ecff:feb9:20a0/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:70 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:110 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:15456 (15.4 KB)  TX bytes:14755 (14.7 KB)
+
+```
+
+Видим, что значения совпадают, кроме того, что в первом случае сетевуха называется s4, во втором ens4
+
+4. Запустили docker run --network host -d nginx несколько раз, а контейнер всё равно один запущен. Это фишка, а не баг.
+
+5. На docker-host машине выполнили команду:
+
+```bash
+> sudo ln -s /var/run/docker/netns /var/run/netns
+
+```
+Теперь можно просматривать существующие неймспейсы с помощью
+
+```bash
+> sudo ip netns
+```
+
+#### Примечание: ip netns exec <namespace> <command> - позволит выполнять команды в выбранном namespace
+
+## Bridge network driver
+
+##### 6. Создаём brige сеть в  docker
+
+```bash
+docker network create reddit --driver bridge
+```
+##### 7. Запускаем наш проект reddit с использованием brige-сети:
+
+```bash
+> docker run -d --network=reddit mongo:latest
+> docker run -d --network=reddit asomir/post:1.0
+> docker run -d --network=reddit asomir/comment:1.0
+> docker run -d --network=reddit -p 9292:9292 asomir/ui:1.0
+```
+Идём по ссылке http://35.205.170.223:9292/ и получаем писей по губам.
+Наши сервисы ищут друг друга по ДНС именам (внимательно читаем докерфайл), поэтому они ничерта не знают друг о друге.
+
+##### 8. Присваиваем контейнерам имена или алиасы: 
+
+```bash
+> docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+> docker run -d --network=reddit --network-alias=post asomir/post:1.0
+> docker run -d --network=reddit --network-alias=comment asomir/comment:1.0
+> docker run -d --network=reddit -p 9292:9292 asomir/ui:1.0
+```
+
+Переходим по адресу http://35.205.170.223:9292 и радуемся постам.
+
+##### 9. Убиваем все докер контейнеры 
+
+> docker kill $(docker ps -q)
+
+##### 10. Создаём докер сети для фронтэндв и бекэнда: 
+
+> docker network create back_net —subnet=10.0.2.0/24
+> docker network create front_net --subnet=10.0.1.0/24
+
+##### 11. Запускаем сети в соответсвующих сетях
+
+> docker run -d --network=front_net -p 9292:9292 --name ui asomir/ui:1.0
+> docker run -d --network=back_net --name comment asomir/comment:1.0
+> docker run -d --network=back_net --name post asomir/post:1.0
+> docker run -d --network=back_net --name mongo_db --network-alias=post_db --network-alias=comment_db mongo:latest
+
+Пошли на адрес http://35.205.170.223:9292/ и счастливо постим постики
+
+## Docker-compose
+
+##### 12. 
+#####
+
+
+
 # Homework 16
 
 ### Новая структура репозитория
