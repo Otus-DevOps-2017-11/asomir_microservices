@@ -1,0 +1,6 @@
+REPOSITORY              TAG                 IMAGE ID            CREATED             SIZE
+asomir/nginx-tmp-file   latest              5ecfc7c8efbd        41 seconds ago      108MB
+ubuntu                  16.04               0458a4468cbc        10 days ago         112MB
+ubuntu                  latest              0458a4468cbc        10 days ago         112MB
+nginx                   latest              3f8a4339aadd        5 weeks ago         108MB
+hello-world             latest              f2a91732366c        2 months ago        1.85kB
