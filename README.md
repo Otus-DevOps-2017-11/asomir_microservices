@@ -260,10 +260,108 @@ docker network create reddit --driver bridge
 
 ## Docker-compose
 
-##### 12. 
-#####
+##### 12. Ставим Docker Compose 
 
+> pip install docker-compose
 
+##### 13. Создаём файл docker-compose.yml в папке reddit-microservices с конфигурацией 4 наших контейнеров
+
+```docker
+version: '3.3'
+services:
+  post_db:
+    image: mongo:3.2
+    volumes:
+      - post_db:/data/db
+    networks:
+      - reddit
+  ui:
+    build: ./ui
+    image: ${USERNAME}/ui:1.0
+    ports:
+      - 9292:9292/tcp
+    networks:
+      - reddit
+  post:
+    build: ./post-py
+    image: ${USERNAME}/post:1.0
+    networks:
+      - reddit
+  comment:
+    build: ./comment
+    image: ${USERNAME}/comment:1.0
+    networks:
+      - reddit
+
+volumes:
+  post_db:
+
+networks:
+  reddit:
+```
+##### 14. Перед запуском необходимо экспортировать значения данных переменных окружения. В нашем случае это имя пользователя
+
+> export USERNAME=asomir
+
+Поднимаем наши сервисы
+> docker-compose up -d
+> docker-compose ps
+
+Наблюдаем такую картину
+
+```markdown
+            Name                          Command             State           Ports         
+--------------------------------------------------------------------------------------------
+redditmicroservices_comment_1   puma                          Up                            
+redditmicroservices_post_1      python3 post_app.py           Up                            
+redditmicroservices_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp             
+redditmicroservices_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
+
+```
+
+Идём на http://35.205.170.223:9292/ и радуемся тому, что всё работает
+
+## Самостоятельное задание
+
+```docker
+version: '3.3'
+services:
+  post_db: # поднимаем сервис базы данных
+    image: mongo:${VERSION_MONGO} # версию мы параметризировали в .env
+    volumes:
+      - post_db:/data/db # приаттачиваем волюм 
+    networks:
+      back_net: # по схеме оно у нас должно быть в бекенде
+        aliases: # придумываем ему имена в сети которые увидят пост и камент
+          - post_db
+          - comment_db
+  ui: # поднимаем интерфейс, сервис веб-морды
+    build: ./ui # из папки уй
+    image: ${USERNAME}/ui:${APP_VERSION_UI} # параметризировали пользователя из докер хаба и версию уя
+    ports:
+      - ${APP_PORT}:9292/tcp # параметризировали порт 
+    networks:
+      - front_net # уй у нас должен быть во фронте
+  post:
+    build: ./post-py
+    image: ${USERNAME}/post:${APP_VERSION_PTSO} # берём имедж из asomir/post:1.0 параметризировали имя пользователя и APP_VERSION_PTSO = 1.0 
+    networks: # пихаем в 2 сети
+      - front_net
+      - back_net
+  comment:
+    build: ./comment
+    image: ${USERNAME}/comment:${APP_VERSION_COMMENT}
+    networks: 
+      - back_net
+      - front_net
+
+volumes: # создаём волюм
+  post_db:
+
+networks: # создаём сети
+  front_net:
+  back_net:
+```
 
 # Homework 16
 
