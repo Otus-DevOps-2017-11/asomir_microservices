@@ -2,5 +2,5 @@
 # defaults file for gitlab/
 
 deploy_user: asomirl
-gitlab_ip: 35.195.130.13
+gitlab_ip: 35.195.25.42
 gitlab_folder: /srv/gitlab
