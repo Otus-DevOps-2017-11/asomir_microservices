@@ -1,3 +1,61 @@
+# Homework 20
+
+## Устройство Gitlab CI. Непрерывная поставка
+
+###### Создали новый проект example2, добавили remote в asomir_microservices
+
+> git checkout -b docker-7
+> git remote add gitlab2 http://35.195.25.42/homework/example2.git
+> git push gitlab2 docker-7
+
+### Pipeline
+
+##### Включили runner, поправили .gitlab-ci.yml
+
+```yamlex
+image: ruby:2.4.2
+
+stages:
+  - build
+  - test
+  - review
+
+variables:
+  DATABASE_URL: 'mongodb://mongo/user_posts'
+
+before_script:
+  - cd reddit
+  - bundle install
+
+build_job:
+  stage: build
+  script:
+    - echo 'Building'
+
+test_unit_job:
+  stage: test
+  services:
+    - mongo:latest
+  script:
+    - ruby simpletest.rb
+
+test_integration_job:
+  stage: test
+  script:
+    - echo 'Testing 2'
+
+deploy_dev_job:
+  stage: review
+  script:
+    - echo 'Deploy'
+  environment:
+    name: dev
+    url: http://dev.example.com
+
+```
+
+
+
 # Homework 19
 
 ## Устройство Gitlab CI.
