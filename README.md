@@ -1,3 +1,51 @@
+# Homework 21
+
+## Введение в мониторинг. Системы мониторинга.
+
+### Подготовка окружения
+
+##### 1. Создадим правило для файерволла Прометеуса и Пумы соответственно:
+
+
+```bash
+$ gcloud compute firewall-rules create prometheus-default --allow tcp:9090
+
+$ gcloud compute firewall-rules create puma-default --allow tcp:9292
+
+```
+
+##### 2. Создадим Docker хост в GCE и настроим локальное окружение на работу с ним
+
+> export GOOGLE_PROJECT=docker-194414
+
+##### 3. Создаём докер хост, с которым мы и будем работать
+
+```bash
+# create docker host
+docker-machine create --driver google \
+    --google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts \
+    --google-machine-type n1-standard-1 \
+    vm1
+```
+##### 4. Подключаемся к докер машине
+```bash
+# configure local env
+eval $(docker-machine env vm1)
+
+```
+
+### Запуск Prometheus
+
+##### 5. Запускаем Прометея внутри докер контейнера. Коварно воспользуемся готовым образом:
+
+```bash
+$ docker run --rm -p 9090:9090 -d --name prometheus prom/prometheus:v2.1.0
+```
+
+
+
+
+
 # Homework 20
 
 ## Устройство Gitlab CI. Непрерывная поставка
