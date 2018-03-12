@@ -15,44 +15,112 @@
 ```yamlex
 image: ruby:2.4.2
 
-stages:
+stages:       # в каких окружениях что происходить будет
   - build
   - test
   - review
+  - stage
+  - production
 
 variables:
   DATABASE_URL: 'mongodb://mongo/user_posts'
 
-before_script:
+before_script:    # что бы запустить в самом начале
   - cd reddit
   - bundle install
 
-build_job:
+build_job:        # билдим
   stage: build
   script:
     - echo 'Building'
 
-test_unit_job:
+test_unit_job:    # юнит тестирование
   stage: test
   services:
     - mongo:latest
   script:
     - ruby simpletest.rb
 
-test_integration_job:
+test_integration_job:    # интегрированные тесты
   stage: test
   script:
     - echo 'Testing 2'
 
-deploy_dev_job:
+deploy_dev_job:         # деплой в дев
   stage: review
   script:
     - echo 'Deploy'
-  environment:
+  environment:          # разворачиваем окружение 
     name: dev
     url: http://dev.example.com
 
+branch review:          # ветка ревью 
+  stage: review         
+  script: echo "Deploy to $CI_ENVIRONMENT_SLUG"
+  environment:
+    name: branch/$CI_COMMIT_REF_NAME
+    url: http://$CI_ENVIRONMENT_SLUG.example.com
+  only:
+    - branches
+  except:
+    - master
+
+staging:
+  stage: stage
+  when: manual   # говорит о том, что job должен быть запущен человеком из UI
+  only:
+    - /^\d+\.\d+.\d+/   # директива, которая не позволит нам выкатить на staging и production код,
+                        # не помеченный с помощью тэга в git
+                        # описывает список условий, которые должны быть
+                        # истинны, чтобы job мог запуститься. Регулярное выражение слева
+                        # означает, что должен стоять semver тэг в git, например, 2.4.10
+  script:
+    - echo 'Deploy'
+  environment:
+    name: stage
+    url: https://beta.example.com
+
+production:
+  stage: production
+  when: manual
+  only:
+    - /^\d+\.\d+.\d+/
+  script:
+    - echo 'Deploy'
+  environment:
+    name: production
+    url: http://example.com
 ```
+##### Изменение без указания тэга запустят пайплайн без job staging и production
+##### Изменение, помеченное тэгом в git запустит полный пайплайн
+
+```bash
+git commit -a -m ‘#4 add logout button to profile page’
+git tag 2.4.10
+git push gitlab2 docker-7 --tags
+```
+### Динамические окружения
+
+##### Gitlab CI позволяет определить динамические окружения, это мощная функциональность
+##### позволяет вам иметь выделенный стенд для, например, каждой feature-ветки в git.
+##### Определяются динамические окружения с помощью переменных, доступных в .gitlab-ci.yml
+
+##### Этот job определяет динамическое окружение для каждой ветки в репозитории, кроме ветки master
+
+```yamlex
+branch review:
+stage: review
+script: echo "Deploy to $CI_ENVIRONMENT_SLUG"
+environment:
+name: branch/$CI_COMMIT_REF_NAME
+url: http://$CI_ENVIRONMENT_SLUG.example.com
+only:
+- branches
+except:
+- master
+```
+
+Теперь, на каждую ветку в git отличную от master Gitlab CI будет определять новое окружение.
 
 
 
