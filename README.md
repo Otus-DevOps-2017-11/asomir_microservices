@@ -1,3 +1,398 @@
+# Homework 23
+
+## Мониторинг приложения и инфраструктуры
+
+### Подготовка окружения
+
+##### Создадим Docker хост в GCE и настроим локальное окружение на работу с ним
+
+> export GOOGLE_PROJECT=docker-194414
+
+```bash
+docker-machine create --driver google \
+    --google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts \
+    --google-machine-type n1-standard-1 \
+    vm1
+```
+
+> eval $(docker-machine env vm1)
+##### Узнаем IP адрес
+> docker-machine ip vm1
+
+104.154.181.55
+
+##### Билдим образы сервисов
+
+> cd docker/
+
+> docker-compose up -d
+
+### Мониторинг Docker контейнеров
+
+##### Оставим описание приложений в docker-compose.yml, а мониторинг выделим в отдельный файл docker-compose-monitoring.yml
+
+Для запуска приложений будем как и ранее
+использовать 
+
+> docker-compose up -d
+ 
+Для мониторинга -
+
+> docker-compose -f docker-compose-monitoring.yml up -d
+
+### cAdvisor
+
+Мы будем использовать cAdvisor для наблюдения
+за состоянием наших Docker контейнеров. cAdvisor
+собирает информацию о ресурсах потребляемых
+контейнерами и характеристиках их работы.
+Примерами метрик являются: процент
+использования контейнером CPU и памяти,
+выделенные для его запуска, объем сетевого
+трафика и др
+
+##### Добавим новый сервис в наш компоуз файл мониторинга, чтобы запускать cAdvisor в контейнере
+Поместим его в одну сеть с Прометеем, чтобы он мог собирать с него метрички
+
+docker-compose-monitoring.yml 
+
+```yamlex
+cadvisor:
+  image: google/cadvisor:v0.29.0
+  volumes:
+    - '/:/rootfs:ro'
+    - '/var/run:/var/run:rw'
+    - '/sys:/sys:ro'
+    - '/var/lib/docker/:/var/lib/docker:ro'
+  ports:
+    - '8080:8080'
+```
+
+Откроем порт 8080 в GCE 
+
+```bash
+gcloud compute firewall-rules create cadvisor-default --allow tcp:8080
+```
+
+##### Добавим информацию о новом сервисе в конфигурацию Prometheus, чтобы он начал собирать метрики.
+
+```yamlex
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets:
+        - 'cadvisor:8080'
+```
+
+##### Пересоберём Прометея с обновлённой конфигурацией
+
+```bash
+export USER_NAME=asomir
+docker build -t $USER_NAME/prometheus .
+cd ../ ../docker
+docker-compose down
+docker-compose up -d 
+docker-compose -f docker-compose-monitoring.yml up -d
+```
+
+##### cAdvisor имеет UI, в котором отображается собираемая о контейнерах информация. 
+
+Откроем страницу Web UI по адресу http://104.154.181.55:8080
+
+по пути /metrics все собираемые метрики публикуются для сбора Prometheus
+
+##### Жмахнем на ссылку Docker Containers
+
+###### Кто у нас тут?
+
+```markdown
+Subcontainers
+comment (/docker/f03c8787bcd9bd98d74f24bc99c81ca959e6b2060e800efcc8454576dc4ffe0b)
+post-py (/docker/99c47e0f760bfb1e115ec71ac01a835b1f02f213698f62231d78736ed49ddb66)
+ui (/docker/80e8d9da6954faf0eb04a8b665f9a1ae53c6b7834f8cc4b4df307585cf58cd0a)
+docker_post_db_1 (/docker/34e1634d3c0251e55c2bd608b58af6ea40151e944d31a80bd0173df45fef3ca6)
+docker_node-exporter_1 (/docker/48f5424a7383963b288e9a830f1ca10997ca1bdde526cafc9b67a884935f4d5b)
+docker_prometheus_1 (/docker/24c99069cfb8b0ec891bae5a31d947780fa1f1357f91bcf176a60a48d4e8bb66)
+docker_cadvisor_1 (/docker/594e93a52e967d2a00a373d3cd776aad9ea504caf912cc4ca2adc808f06c0717)
+```
+
+
+###### Информация о хосте
+
+```markdown
+Driver Status
+Docker Version 18.02.0-ce
+Docker API Version 1.36
+Kernel Version 4.13.0-1011-gcp
+OS Version Ubuntu 16.04.4 LTS
+Host Name vm1
+Docker Root Directory /var/lib/docker
+Execution Driver
+Number of Images 9
+Number of Containers 7
+Storage
+Driver aufs
+Root Dir /var/lib/docker/aufs
+Backing Filesystem extfs
+Dirs 84
+Dirperm1 Supported true
+```
+
+Проверим, что метрики контейнеров собираются
+Prometheus. Введем, слово `container` и посмотрим,
+что он предложит дополнить
+
+## Визуализация метрик. Grafana.
+
+##### Используем инструмент Grafana для визуализации данных из Prometheus.
+
+Добавим новый сервис в docker-compose-monitoring.yml
+
+```yamlex
+  grafana:
+    image: grafana/grafana:5.0.0
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=secret
+    depends_on:
+      - prometheus
+    ports:
+      - 3000:3000
+
+volumes:
+  grafana_data:
+
+```
+
+##### Запустим новый сервис
+
+> docker-compose -f docker-compose-monitoring.yml up -d grafana
+
+##### Откроем 3000 порт для графаны 
+
+> gcloud compute firewall-rules create grafana-default --allow tcp:3000
+
+##### Откроем страницу Web UI графаны по адресу
+
+http://104.154.181.55:3000
+
+И введём admin secret
+
+##### Добавим источник данных Add Data Source
+
+Сервер назовём Prometheus Server и добавим его по адресу http://104.154.181.55:9090
+
+##### Импортируем Dashboard с сайта https://grafana.com/dashboards : Data Source "Prometheus" - Category "Docker"
+
+###### Docker And System Monitiring сохранили как DockerMonitoring.json
+
+Загрузили источник данных для визуализации Prometheus Server
+
+### Сбор метрик приложения
+
+#### Мониторинг работы приложения
+
+##### Добавим информацию о post сервисе в конфигурацию Prometheus, чтобы он начал собирать метрики и с него.
+
+```yamlex
+  - job_name: 'post'
+    static_configs:
+      - targets:
+        - 'post:5000'
+```
+
+##### Пересоберем образ Prometheus с обновленной конфигурацией.
+
+```bash
+$ export USER_NAME=username
+$ docker build -t $USER_NAME/prometheus .
+```
+##### Пересоздадим нашу Docker инфраструктуру мониторинга:
+
+```bash
+$ docker-compose -f docker-compose-monitoring.yml down
+$ docker-compose -f docker-compose-monitoring.yml up -d
+```
+
+И добавим несколько постов в приложении и несколько коментов, чтобы собрать значения метрик приложения.
+
+##### Для ошибочных запросов сделаем дашборд Rate of UI HTTP Requests with Error
+
+```bash
+rate(ui_request_count{http_status=~"^[45].*"}[1m])
+```
+##### Для UI http requests сделаем запрос 
+
+```bash
+rate(ui_request_count{http_status=~"^[23].*"}[1m])
+```
+
+### Гистограмма
+
+В Prometheus есть тип метрик histogram. Данный тип
+метрик в качестве своего значение отдает ряд
+распределения измеряемой величины в заданном
+интервале значений.
+Мы используем данный тип метрики для измерения
+времени обработки HTTP запроса нашим
+приложением.
+
+Посмотрим информацию по времени обработки запроса приходящих на
+главную страницу приложения
+
+ui_request_latency_seconds_bucket{path="/"}
+
+
+### Перцентиль
+
+- числовое значение в наборе значений
+
+-  все числа в наборе меньше перцентиля, попадают в границы заданного процента значений от всего числа значений в наборе
+
+
+Часто для анализа данных мониторинга применяются значения 90, 95 или 99-й перцентиля.
+Мы вычислим 95-й перцентиль для выборки времени обработки запросов, чтобы посмотреть
+какое значение является максимальной границей для большинства (95%) запросов. Для этого
+воспользуемся встроенной функцией histogram_quantile():
+
+##### Добавим новый график на дашборд для вычисления 95 перцентиля времени ответа на запрос
+
+
+histogram_quantile(0.95, sum(rate(ui_request_latency_seconds_bucket[5m])) by (le))
+
+Сохраним изменения дашборда и эспортируем его в JSON файл, который загрузим на нашу локальную машину
+
+monitoring/grafana/dashboards/UI_Service_Monitoring.json
+
+### Сбор метрик бизнес логики
+
+##### В качестве примера метрик бизнес логики мы в наше приложение мы добавили счетчики количества постов и комментариев.
+
+• post_count
+
+• comment_count
+
+Мы построим график скорости роста значения счетчика за последний час, используя функцию rate().
+Это позволит нам получать информацию об активности пользователей приложения.
+
+##### Создали новый дашборд Business_Logic_Monitoring и построили график функции rate(post_count[1h])
+
+##### построили график функции rate(comment_count[1h]) и экспортировали график в monitoring/grafana/dashboards/Business_Logic_Monitoring.json
+
+### Алертинг
+
+#### Правила алертинга
+
+Мы определим несколько правил, в которых зададим условия состояний наблюдаемых систем,
+при которых мы должны получать оповещения, т.к. заданные условия могут привести к недоступности
+или неправильной работе нашего приложения
+
+
+##### Alertmanager - дополнительный компонент для системы мониторинга Prometheus, который отвечает за первичную обработку алертов и дальнейшую
+отправку оповещений по заданному назначению. Создаём новую директорию monitoring/alertmanager. В этой директории создаём Dockerfile
+со следующим содержимым:
+
+```docker
+FROM prom/alertmanager:v0.14.0
+ADD config.yml /etc/alertmanager/
+```
+
+В директории monitoring/alertmanager создали файл config.yml, в
+котором определили отправку нотификаций в мой тестовый слак
+канал #alexander-akilin.
+
+```yamlex
+global:
+slack_api_url: 'https://hooks.slack.com/services/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'
+route:
+receiver: 'slack-notifications'
+receivers:
+- name: 'slack-notifications'
+slack_configs:
+- channel: '#alexander-akilin'
+```
+
+##### Собираем образ alertmanager:
+
+monitoring/alertmanager
+
+```bash
+docker build -t $USER_NAME/alertmanager .
+```
+
+#####  Добавим новый сервис в компоуз файл
+
+```yamlex
+alertmanager:
+    image: ${USER_NAME}/alertmanager
+    command:
+        - '--config.file=/etc/alertmanager/config.yml'
+    ports:
+        - 9093:9093
+```
+
+##### Добавим операцию копирования данного файла в Dockerfile:
+
+monitoring/prometheus/Dockerfile
+
+```yamlex
+FROM prom/prometheus:v2.1.0
+ADD prometheus.yml /etc/prometheus/
+ADD alerts.yml /etc/prometheus/
+```
+
+##### Добавим информацию о правилах, в конфиг Prometheus
+
+prometheus.yml
+
+```yamlex
+rule_files:
+  - "alerts.yml"
+
+alerting:
+  alertmanagers:
+  - scheme: http
+    static_configs:
+    - targets:
+      - "alertmanager:9093"
+```
+##### Пересоберем образ Prometheus:
+
+> docker build -t $USER_NAME/prometheus .
+
+##### Пересоздадим сервисы для мониторинга
+
+```bash
+docker-compose -f  docker-compose-monitoring.yml down
+docker-compose -f  docker-compose-monitoring.yml up -d 
+
+```
+##### Откроем порт 9093 для AlertManager
+
+```bash
+gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
+
+```
+
+### Завершение работы
+
+##### Запушим собранные образы на DockerHub:
+
+
+$ docker login
+Login Succeeded
+
+docker push $USER_NAME/ui
+docker push $USER_NAME/comment
+docker push $USER_NAME/post
+docker push $USER_NAME/prometheus
+
+
+https://hub.docker.com/r/asomir/
+
+
+
 # Homework 21
 
 ## Введение в мониторинг. Системы мониторинга.
