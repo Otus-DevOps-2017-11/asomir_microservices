@@ -1,0 +1,10 @@
+---
+# tasks file for gitlab/
+
+ - include: install_py.yml
+ - include: install_pip.yml
+ - include: create_folders.yml
+ - include: install_docker.yml
+ - include: install_docker_compose.yml
+ - include: omnibus.yml
+ - include: compose.yml

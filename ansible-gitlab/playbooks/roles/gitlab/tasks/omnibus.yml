@@ -1,0 +1,5 @@
+- name: Change mongo config file
+  template:
+    src: templates/docker-compose.yml.j2
+    dest: /srv/gitlab/docker-compose.yml
+    mode: 0644

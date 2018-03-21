@@ -1,0 +1,9 @@
+---
+  - name: Creates directoryes
+    file:
+      path: "{{ gitlab_folder }}/config"
+      path: "{{ gitlab_folder }}/data"
+      path: "{{ gitlab_folder }}/logs"
+      state: directory
+      owner: "{{ deploy_user }}"
+      group: "{{ deploy_user }}"

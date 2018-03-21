@@ -1,0 +1,14 @@
+*.tfstate
+*.tfstate.*.backup
+*.tfstate.backup
+*.tfvars
+.terraform/
+.idea/
+*.retry
+jdauphant.nginx
+# Vagrant & molecule
+.vagrant/
+*.pyc
+.molecule
+.cache
+docker-monolith/
