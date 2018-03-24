@@ -1,3 +1,202 @@
+# Homework 25
+
+## Логирование и распределенная трассировка
+
+### Plan
+
+• Сбор неструктурированных логов
+• Визуализация логов
+• Сбор структурированных логов
+• Распределенная трасировка
+
+## Подготовимся
+
+##### Создали Docker хост в GCE и настроили локальное окружение на работу с ним:
+
+```bash
+export GOOGLE_PROJECT=docker-194414
+```
+
+```bash
+ docker-machine create --driver google \
+    --google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts \
+    --google-machine-type n1-standard-1 \
+    --google-open-port 5601/tcp \
+    --google-open-port 9292/tcp \
+    --google-open-port 9411/tcp \
+    logging
+
+```
+
+##### configure local env
+
+> eval $(docker-machine env logging)
+
+##### узнаем IP адрес
+
+> docker-machine ip logging
+
+35.193.44.87
+
+• Экспортируем имя пользователя 
+
+```bash
+export USER_NAME=asomir
+```
+
+• Обновили код в директории /src вашего репозитория из кода по ссылке.
+
+ЗАБЫЛИ ДОКЕРФАЙЛЫ, ВЕРНУЛИ НА МЕСТО!
+
+• Выполнили сборку образов при помощи скриптов docker_build.sh в директории каждого сервиса:
+
+```bash
+for i in ui post-py comment; do cd src/$i; bash docker_build.sh; cd -; done
+```
+
+## Elastic Stack
+
+### Памятка: 
+
+Как упоминалось на лекции хранить все логи стоит
+централизованно: на одном (нескольких) серверах. В этом ДЗ мы
+построим рассмотрим пример построения системы
+централизованного логирования на примере Elastic стека (ранее
+известного как ELK): который включает в себя 3 осовных компонента:
+
+• ElasticSearch (TSDB и поисковый движок для хранения данных),
+
+• Logstash (для агрегации и трансформации данных),
+
+• Kibana (для визуализации).
+
+Однако для агрегации логов вместо Logstash мы будем использовать
+Fluentd, таким образом получая еще одно популярное сочетание этих
+инструментов, получившее название EFK.
+
+
+
+
+##### Создадим отдельный compose-файл для нашей системы логирования в папке docker/
+
+> docker/docker-compose-logging.yml
+
+```yamlex
+version: '3'
+
+  fluentd:
+    build: ./fluentd
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+
+  elasticsearch:
+    image: elasticsearch
+    expose:
+      - 9200
+    ports:
+      - "9200:9200"
+
+  kibana:
+    image: kibana
+    ports:
+      - "5601:5601"
+```
+
+##### Откроем порты для 
+
+###### fluentd
+
+```bash
+gcloud compute firewall-rules create fluentd-default --allow udp:24224
+```
+
+###### elasticsearch
+
+```bash
+gcloud compute firewall-rules create elasticsearch-default --allow tcp:9200
+```
+
+###### kibana
+
+
+```bash
+gcloud compute firewall-rules create kibana-default --allow tcp:9200
+```
+
+### Fluentd
+
+Fluentd инструмент, который может использоваться для
+отправки, агрегации и преобразования лог-сообщений. Мы
+будем использовать Fluentd для агрегации (сбора в одной
+месте) и парсинга логов сервисов нашего приложения.
+Создадим образ Fluentd с нужной нам конфигурацией.
+
+##### Создали в вашем проекте microservices директорию  docker/fluentd, в ней, создали  Dockerfile со следущим содержимым:
+
+```docker
+FROM fluent/fluentd:v0.12
+RUN gem install fluent-plugin-elasticsearch --no-rdoc --no-ri --version 1.9.5
+RUN gem install fluent-plugin-grok-parser --no-rdoc --no-ri --version 1.0.0
+ADD fluent.conf /fluentd/etc
+```
+
+```buildoutcfg
+<source>
+    @type forward # плагин in_forward для приёма логов
+    port 24224
+    bind 0.0.0.0
+</source>
+<match *.**>
+    @type copy    # copy плагин переправляет все логи в elasticsearch и выводит в output
+    <store>
+        @type elasticsearch
+        host elasticsearch
+        port 9200
+        logstash_format true
+        logstash_prefix fluentd
+        logstash_dateformat %Y%m%d
+        include_tag_key true
+        type_name access_log
+        tag_key @log_name
+        flush_interval 1s
+    </store>
+    <store>
+        @type stdout
+    </store>
+</match>
+```
+
+### Структурированные логи
+
+Логи должны иметь заданную (единую) структуру и содержать
+необходимую для нормальной эксплуатации данного сервиса
+информацию о его работе.
+
+Лог-сообщения также должны иметь понятный для выбранной
+системы логирования формат, чтобы избежать ненужной траты
+ресурсов на преобразование данных в нужный вид.
+Структурированные логи мы рассмотрим на примере сервиса
+post.
+
+
+##### Запустим сервисы приложения.
+
+docker/ 
+
+> docker-compose up -d
+
+##### И выполним команду для просмотра логов post сервиса:
+
+docker/ 
+
+>  docker-compose logs -f post
+
+Attaching to reddit_post_1
+
+
+
+
 # Homework 23
 
 ## Мониторинг приложения и инфраструктуры
@@ -380,13 +579,6 @@ gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
 ##### Запушим собранные образы на DockerHub:
 
 
-$ docker login
-Login Succeeded
-
-docker push $USER_NAME/ui
-docker push $USER_NAME/comment
-docker push $USER_NAME/post
-docker push $USER_NAME/prometheus
 
 
 https://hub.docker.com/r/asomir/
