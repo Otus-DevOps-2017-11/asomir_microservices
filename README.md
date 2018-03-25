@@ -19,7 +19,10 @@ docker-machine create --driver google \
 ##### Узнаем IP адрес
 > docker-machine ip vm1
 
+
 35.192.64.106
+
+
 
 ##### Билдим образы сервисов
 
@@ -304,6 +307,7 @@ ADD config.yml /etc/alertmanager/
 
 ```yamlex
 global:
+
   slack_api_url: 'https://hooks.slack.com/services/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'
 route:
   receiver: 'slack-notifications'
@@ -311,6 +315,7 @@ receivers:
   - name: 'slack-notifications'
     slack_configs:
     - channel: '#alexander-akilin'
+
 ```
 
 ##### Собираем образ alertmanager:
@@ -380,6 +385,7 @@ gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
 ##### Запушим собранные образы на DockerHub:
 
 
+
 $ docker login
 Login Succeeded
 
@@ -391,6 +397,7 @@ docker push $USER_NAME/prometheus
 docker push $USER_NAME/alertmanager
 
 ```
+
 
 https://hub.docker.com/r/asomir/
 

@@ -12,6 +12,7 @@ jdauphant.nginx
 .molecule
 .cache
 docker-monolith/
-.env
-src/src.tar.gz
 build_info.txt
+.env
+/src/src.tar.gz
+/src/.gitignore

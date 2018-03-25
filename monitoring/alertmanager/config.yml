@@ -6,3 +6,4 @@ receivers:
   - name: 'slack-notifications'
     slack_configs:
     - channel: '#alexander-akilin'
+
