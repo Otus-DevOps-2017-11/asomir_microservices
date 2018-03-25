@@ -380,13 +380,6 @@ gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
 ##### Запушим собранные образы на DockerHub:
 
 
-$ docker login
-Login Succeeded
-
-docker push $USER_NAME/ui
-docker push $USER_NAME/comment
-docker push $USER_NAME/post
-docker push $USER_NAME/prometheus
 
 
 https://hub.docker.com/r/asomir/
