@@ -1,3 +1,23 @@
+# Homework-27
+
+## Docker swarm
+
+### Строим Swarm Cluster
+
+
+##### Создадим машину master-1
+
+
+
+
+
+
+
+
+
+
+
+
 # Homework 25
 
 ## Логирование и распределенная трассировка
@@ -533,11 +553,6 @@ services:
 docker-compose -f docker-compose-logging.yml -f docker-compose.yml down
 docker-compose -f docker-compose-logging.yml -f docker-compose.yml up -d
 ```
-
-
-
-
-
 
 
 
