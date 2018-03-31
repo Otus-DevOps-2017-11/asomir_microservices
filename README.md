@@ -1,3 +1,101 @@
+# Homework-28
+## Введение в Kubernetes
+### Создание примитивов
+
+Опишем приложение в контексте Kubernetes с помощью manifest-ов
+в YAML-формате. Основным примитивом будет Deployment.
+
+Основные задачи сущности Deployment:
+
+• Создание Replication Controller-а (следит, чтобы число
+запущенных Pod-ов соответствовало описанному)
+
+• Ведение истории версий запущенных Pod-ов (для различных
+стратегий деплоя, для возможностей отката)
+
+• Описание процесса деплоя (стратегия, параметры стратегий)
+По ходу курса эти манифесты будут обновляться, а также
+появляться новые. Текущие файлы нужны для создания структуры и
+проверки работоспособности kubernetes-кластера.
+
+##### Пример манифеста для Deployment POST-компоненты
+
+```yamlex
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: post-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels: # Какие поды поддерживать в нужном количестве
+      app: post
+  template:
+    metadata:
+      name: post
+      labels:
+        app: post
+    spec:
+      containers:
+      - image: asomir/post # Метка, чтобы Replication controller нашел под
+        name: post
+```
+
+### Задание
+
+• Создайте папку kubernetes в корне репозитория
+
+• Сохраните файл post-deployment.yml в папку kubernetes
+
+• Создайте собственные файлы с Deployment манифестами приложений и сохраните в папке kubernetes
+
+• ui-deployment.yml
+
+• comment-deployment.yml
+
+• mongo-deployment.yml
+
+P.S. Эту папку и файлы в ней в дальнейшем мы будем развивать (пока это
+не рабочие экземпляры)
+
+### Kubernetes the hard way
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Homework-27
 
 ## Docker swarm
