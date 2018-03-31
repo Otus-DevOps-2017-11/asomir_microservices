@@ -1,3 +1,992 @@
+# Homework-27
+
+## Docker swarm
+
+### Строим Swarm Cluster
+
+
+##### Создадим машину master-1
+
+Создадим машину master-1, worker-1, worker-2
+
+```bash
+docker-machine create --driver google \
+   --google-project  docker-194414  \
+   --google-zone europe-west1-b \
+   --google-machine-type g1-small \
+   --google-machine-image $(gcloud compute images list --filter ubuntu-1604-lts --uri) \
+   master-1
+```
+```bash
+docker-machine create --driver google \
+   --google-project  docker-194414  \
+   --google-zone europe-west1-b \
+   --google-machine-type g1-small \
+   --google-machine-image $(gcloud compute images list --filter ubuntu-1604-lts --uri) \
+   worker-1
+```
+
+```bash
+docker-machine create --driver google \
+   --google-project  docker-194414  \
+   --google-zone europe-west1-b \
+   --google-machine-type g1-small \
+   --google-machine-image $(gcloud compute images list --filter ubuntu-1604-lts --uri) \
+   worker-2
+```
+
+```bash
+eval $(docker-machine env master-1)
+```
+##### Инициализируем Swarm-mode
+
+```bash
+ docker swarm init
+```
+
+##### После выполнения swarm init появилось сообщение:
+```commandline
+Swarm initialized: current node (xu9sufx2b8awxw29fkb55o5o8) is now a manager.
+
+To add a worker to this swarm, run the following command:
+
+    docker swarm join --token SWMTKN-1-0tg5nnnphxggtdp85nljlrhk4gjbw9kkheuh0oddldua4sva4b-37xt5a2kuc700a7pa49aui812 10.132.0.2:2377
+
+To add a manager to this swarm, run 'docker swarm join-token manager' and follow the instructions.
+
+```
+
+
+##### Кластер создан, в нем теперь есть 1 manager и можно добавить к нему новые ноды.
+
+Выделенная команда позволит добавить только worker-ноды.
+Также токен для добавления нод можно сгенерировать токен с помощью
+команды:
+
+```bash
+docker swarm join-token manager/worker
+```
+
+
+
+
+#### Памятка
+ 
+ >если на сервере несколько сетевых интерфейсов или
+сервер находится за NAT, то необходимо указывать флаг --
+advertise-addr с конкретным адресом публикации.
+По-умолчанию это будет <адрес интерфейса>:2377
+
+##### В результате выполнения docker swarm init:
+
+• Текущая нода переключается в Swarm-режим
+
+• Текущая нода назначается в качестве Лидера менеджеров кластера
+
+• Ноде присваивается хостнейм машины
+
+• Менеджер конфигурируется для прослушивания на порту 2377
+
+• Текущая нода получает статус Active, что означает возможность
+получать задачи от планировщика
+
+• Запускается внутреннее распределенное хранилище данных Docker
+для работы оркестратора
+
+• Генерируются токены для присоединения Worker и Manager нод к кластеру
+
+• Генерируется самоподписный корневый (CA) сертификат для Swarm
+
+• Создается Overlay-сеть Ingress для публикации сервисов наружу
+
+
+##### На хостах worker-1 и worker-2 выполняем:
+
+```bash
+docker swarm join --token SWMTKN-1-0tg5nnnphxggtdp85nljlrhk4gjbw9kkheuh0oddldua4sva4b-37xt5a2kuc700a7pa49aui812 10.132.0.2:2377
+```
+
+Подключаемся к master-1 ноде 
+eval $(docker-machine env master-1)
+
+Дальше работать будем только с ней. Команды в рамках
+Swarm-кластера можно запускать только на Manager-нодах.
+
+##### Проверим состояние кластера.
+
+```bash
+docker node ls
+```
+
+```commandline
+ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS      ENGINE VERSION
+xu9sufx2b8awxw29fkb55o5o8 *   master-1            Ready               Active              Leader              18.03.0-ce
+wqrt3dr64i3md1i1tej6ek1kd     worker-1            Ready               Active                                  18.03.0-ce
+dfiw33hegvqyg9czngss6lp88     worker-2            Ready               Active                                  18.03.0-ce
+
+```
+
+### Stack
+
+• Сервисы и их зависимости объединяем в Stack
+
+• Stack описываем в формате docker-compose (YML)
+
+
+##### Управляем стеком с помощью команд:
+
+```bash
+$ docker stack deploy/rm/services/ls STACK_NAME
+```
+
+##### У нас уже есть первичное описание стека для запуска reddit-app в docker-compose.yml. Возьмём с gist: 
+
+https://raw.githubusercontent.com/express42/otus-snippets/master/hw-27/docker-compose.yml
+
+
+#####  Пока что используем только описание приложения и его зависимостей
+
+$ docker stack deploy --compose-file docker-compose.ym ENV  
+
+
+##### Docker stack не поддерживает переменные окружения и .env файлы: 
+
+```bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.yml config 2>/dev/null) DEV
+```
+
+##### Посмотреть состояние стека:
+
+```bash
+docker stack services DEV
+```
+Будете выведена своданая информация по сервисам (не по контейнерам):
+
+```commandline
+ID                  NAME                MODE                REPLICAS            IMAGE                   PORTS
+0wlndktpczc9        DEV_mongo           replicated          1/1                 mongo:3.2               
+isuw3lwbq4p8        DEV_comment         replicated          1/1                 asomir/comment:latest   
+rzdpgqnglgso        DEV_ui              replicated          1/1                 asomir/ui:latest        *:9292->9292/tcp
+v1cku1utk7iq        DEV_post            replicated          1/1                 asomir/post:latest      
+
+```
+### Размещаем сервисы
+
+
+Ограничения размещения определяются с помощью
+логических действий со значениями label-ов (медатанных) нод
+и docker-engine’ов
+
+Обращение к встроенным label’ам нод - node.*
+Обращение к заданным вручную label’ам нод - node.labels*
+Обращение к label’ам engine - engine.labels.*
+
+Примеры:
+- node.labels.reliability == high
+- node.role != manager
+- engine.labels.provider == google
+
+### Labels
+
+##### Добавим label к ноде
+
+```bash
+docker node update --label-add reliability=high master-1
+```
+
+Swarm не умеет фильтровать вывод по label-ам нод пока что
+
+```bash
+docker node ls --filter "label=reliability"
+```
+
+##### Посмотреть label’ы всех нод можно так:
+
+```bash
+docker node ls -q | xargs docker node inspect  -f '{{ .ID }} [{{ .Description.Hostname }}]: {{ .Spec.Labels }}'
+```
+##### Предположим, что нода master-1 надежнее и дороже, чем worker-ноды, поэтому поместим туда нашу базу. Определим с помощью placement constraints ограничения размещения
+
+````yamlex
+services:
+  mongo:
+    image: mongo:${MONGO_VERSION}
+    deploy:
+      placement:
+        constraints:
+          - node.labels.reliability == high
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      back_net:
+        aliases:
+          - post_db
+          - comment_db
+````
+
+##### Основную нагрузку пользователей reddit-app будем принимать на worker-ноды, чтобы не перегружать master с помощью label node.role
+
+````yamlex
+version: '3.5'
+services:
+
+  mongo:
+    image: mongo:3.2
+    deploy:
+      placement:
+        constraints:
+          - node.labels.reliability == high
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      back_net:
+        aliases:
+          - post_db
+          - comment_db
+
+  post:
+    image: ${USER_NAME}/post:latest
+    deploy:
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  comment:
+    image: ${USER_NAME}/comment:latest
+    deploy:
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  ui:
+    image: ${USER_NAME}/ui:latest
+    deploy:
+      placement:
+        constraints:
+          - node.role == worker
+    ports:
+      - "${UI_PORT}:9292/tcp"
+    networks:
+      - front_net
+
+volumes:
+  mongo_data: {}
+
+networks:
+  back_net: {}
+  front_net: {}
+````
+##### Deploy
+
+````bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.yml config 2>/dev/null) DEV
+````
+
+##### Посмотрим статусы текущих задач (конетейнеров) в стеке
+
+```bash
+docker stack ps DEV
+```
+```commandline
+ID                  NAME                IMAGE                   NODE                DESIRED STATE       CURRENT STATE            ERROR               PORTS
+836bqjmxzknt        DEV_post.1          asomir/post:latest      worker-1            Running             Running 17 minutes ago                       
+vd95hw5ezi1x        DEV_mongo.1         mongo:3.2               master-1            Running             Running 17 minutes ago                       
+waqt3zjg2sli        DEV_comment.1       asomir/comment:latest   worker-2            Running             Running 17 minutes ago                       
+j7sipv4mhhrv        DEV_ui.1            asomir/ui:latest        worker-1            Running             Running 17 minutes ago                       
+
+```
+
+### Масштабируем сервисы
+
+Для горизонтального масшатбирования и большей отказоустойчивости запустим микросервисы в нескольких экземплярах.
+Существует 2 варианта запуска:
+
+• replicated mode - запустить определенное число задач (default)
+
+• global mode - запустить задачу на каждой ноде
+
+!!! Нельзя заменить replicated mode на global mode ( и обратно) без удаления сервиса
+
+Будем использовать Replicated mode
+
+Запустим приложения ui, post и comment в 2-х экземплярах
+
+```yamlex
+version: '3.5'
+services:
+...
+
+  post:
+    image: ${USER_NAME}/post:latest
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  comment:
+    image: ${USER_NAME}/comment:latest
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  ui:
+    image: ${USER_NAME}/ui:latest
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+    ports:
+      - "${UI_PORT}:9292/tcp"
+    networks:
+      - front_net
+...
+```
+
+##### Deploy
+
+```bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.yml config 2>/dev/null) DEV
+
+```
+
+##### Проверим что получилось
+
+```bash
+docker stack services DEV
+```
+
+```commandline
+ID                  NAME                MODE                REPLICAS            IMAGE                   PORTS
+0wlndktpczc9        DEV_mongo           replicated          1/1                 mongo:3.2               
+isuw3lwbq4p8        DEV_comment         replicated          2/2                 asomir/comment:latest   
+rzdpgqnglgso        DEV_ui              replicated          2/2                 asomir/ui:latest        *:9292->9292/tcp
+v1cku1utk7iq        DEV_post            replicated          2/2                 asomir/post:latest      
+
+```
+
+
+
+
+Сервисы  распределились равномерно по кластеру (стратегия spread) (проверяем)
+
+```bash
+docker stack ps DEV
+```
+```commandline
+836bqjmxzknt        DEV_post.1          asomir/post:latest      worker-1            Running             Running 26 minutes ago                           
+vd95hw5ezi1x        DEV_mongo.1         mongo:3.2               master-1            Running             Running 26 minutes ago                           
+waqt3zjg2sli        DEV_comment.1       asomir/comment:latest   worker-2            Running             Running 26 minutes ago                           
+j7sipv4mhhrv        DEV_ui.1            asomir/ui:latest        worker-1            Running             Running 27 minutes ago                           
+yle6wlbgt7ls        DEV_comment.2       asomir/comment:latest   worker-1            Running             Running about a minute ago                       
+o0je63lkz2c3        DEV_ui.2            asomir/ui:latest        worker-2            Running             Running about a minute ago                       
+06yr6yn151vo        DEV_post.2          asomir/post:latest      worker-2            Running             Running about a minute ago           
+```
+
+##### Можно управлять кол-вом запускаемых сервисов “налету”: 
+
+```bash
+$ docker service scale DEV_ui=3
+```
+
+ИЛИ
+
+```bash
+$ docker service update --replicas 3 DEV_ui
+```
+
+##### Выключить все задачи сервиса:
+
+```bash
+$ docker service update --replicas 0 DEV_ui
+```
+
+### Global Mode
+
+Для задач мониторинга кластера нам понадобится запускать node_exporter (только в 1-м экземпляре)
+
+##### Используем global mode
+
+```yamlex
+node-exporter:
+  image: prom/node-exporter:v0.15.0
+  deploy:
+    mode: global
+```
+
+##### Deploy
+
+```bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose-monitoring.yml config 2>/dev/null) DEV
+```
+##### Проверяем, что получилось: 
+
+```commandline
+ID                  NAME                                          IMAGE                        NODE                DESIRED STATE       CURRENT STATE                ERROR               PORTS
+0db4c3irczni        DEV_node-exporter.dfiw33hegvqyg9czngss6lp88   prom/node-exporter:v0.15.2   worker-2            Running             Running about a minute ago                       
+tsokokwzs79k        DEV_node-exporter.wqrt3dr64i3md1i1tej6ek1kd   prom/node-exporter:v0.15.2   worker-1            Running             Running about a minute ago                       
+lld3cn9wt71c        DEV_node-exporter.xu9sufx2b8awxw29fkb55o5o8   prom/node-exporter:v0.15.2   master-1            Running             Running about a minute ago                       
+vajezlu3lwvr        DEV_grafana.1                                 grafana/grafana:5.0.0        master-1            Running             Running about a minute ago                       
+qdw3f5p02sx2        DEV_cadvisor.1                                google/cadvisor:v0.29.0      worker-2            Running             Running about a minute ago                       
+c12ifi1ogvjp        DEV_alertmanager.1                            asomir/alertmanager:latest   master-1            Running             Running about a minute ago                       
+013atvpy3wpo        DEV_prometheus.1                              asomir/prometheus:latest     master-1            Running             Running about a minute ago                       
+836bqjmxzknt        DEV_post.1                                    asomir/post:latest           worker-1            Running             Running 39 minutes ago                           
+vd95hw5ezi1x        DEV_mongo.1                                   mongo:3.2                    master-1            Running             Running 39 minutes ago                           
+waqt3zjg2sli        DEV_comment.1                                 asomir/comment:latest        worker-2            Running             Running 39 minutes ago                           
+j7sipv4mhhrv        DEV_ui.1                                      asomir/ui:latest             worker-1            Running             Running 39 minutes ago                           
+yle6wlbgt7ls        DEV_comment.2                                 asomir/comment:latest        worker-1            Running             Running 14 minutes ago                           
+o0je63lkz2c3        DEV_ui.2                                      asomir/ui:latest             worker-2            Running             Running 14 minutes ago                           
+06yr6yn151vo        DEV_post.2                                    asomir/post:latest           worker-2            Running             Running 14 minutes ago                           
+r5k2puu687cb        DEV_ui.3                                      asomir/ui:latest             worker-1            Running             Running 7 minutes ago                            
+
+```
+
+### Самостоятельное задание 
+
+#### Добавляем в кластер ещё один воркер 
+
+##### Заводим машину 
+
+```bash
+docker-machine create --driver google \
+   --google-project  docker-194414  \
+   --google-zone europe-west1-b \
+   --google-machine-type g1-small \
+   --google-machine-image $(gcloud compute images list --filter ubuntu-1604-lts --uri) \
+   worker-3
+```
+##### Подключаемся к ней
+
+```bash
+eval $(docker-machine env worker-3)
+```
+
+##### Джойним к кластеру 
+
+```bash
+docker swarm join --token SWMTKN-1-0tg5nnnphxggtdp85nljlrhk4gjbw9kkheuh0oddldua4sva4b-37xt5a2kuc700a7pa49aui812 10.132.0.2:2377
+```
+```commandline
+This node joined a swarm as a worker.
+```
+
+##### Проверяем, как распределились сервисы
+
+````bash
+docker stack ps DEV
+
+````
+```commandline
+ID                  NAME                                          IMAGE                        NODE                DESIRED STATE       CURRENT STATE                ERROR               PORTS
+tdltc39nj8zi        DEV_node-exporter.sxvb300vi5n1qw3oj5hhxdoeu   prom/node-exporter:v0.15.2   worker-3            Running             Running about a minute ago                       
+0db4c3irczni        DEV_node-exporter.dfiw33hegvqyg9czngss6lp88   prom/node-exporter:v0.15.2   worker-2            Running             Running 7 minutes ago                            
+tsokokwzs79k        DEV_node-exporter.wqrt3dr64i3md1i1tej6ek1kd   prom/node-exporter:v0.15.2   worker-1            Running             Running 7 minutes ago                            
+lld3cn9wt71c        DEV_node-exporter.xu9sufx2b8awxw29fkb55o5o8   prom/node-exporter:v0.15.2   master-1            Running             Running 7 minutes ago                            
+vajezlu3lwvr        DEV_grafana.1                                 grafana/grafana:5.0.0        master-1            Running             Running 7 minutes ago                            
+qdw3f5p02sx2        DEV_cadvisor.1                                google/cadvisor:v0.29.0      worker-2            Running             Running 7 minutes ago                            
+c12ifi1ogvjp        DEV_alertmanager.1                            asomir/alertmanager:latest   master-1            Running             Running 7 minutes ago                            
+013atvpy3wpo        DEV_prometheus.1                              asomir/prometheus:latest     master-1            Running             Running 7 minutes ago                            
+836bqjmxzknt        DEV_post.1                                    asomir/post:latest           worker-1            Running             Running 45 minutes ago                           
+vd95hw5ezi1x        DEV_mongo.1                                   mongo:3.2                    master-1            Running             Running 45 minutes ago                           
+waqt3zjg2sli        DEV_comment.1                                 asomir/comment:latest        worker-2            Running             Running 45 minutes ago                           
+j7sipv4mhhrv        DEV_ui.1                                      asomir/ui:latest             worker-1            Running             Running 45 minutes ago                           
+yle6wlbgt7ls        DEV_comment.2                                 asomir/comment:latest        worker-1            Running             Running 19 minutes ago                           
+o0je63lkz2c3        DEV_ui.2                                      asomir/ui:latest             worker-2            Running             Running 20 minutes ago                           
+06yr6yn151vo        DEV_post.2                                    asomir/post:latest           worker-2            Running             Running 20 minutes ago                           
+r5k2puu687cb        DEV_ui.3                                      asomir/ui:latest             worker-1            Running             Running 13 minutes ago                           
+
+```
+
+> Видим, что на worker-3 появился только DEV_node-exporter.sxvb300vi5n1qw3oj5hhxdoeu
+
+##### Увеличиваем количество сервисов до 3
+
+```yamlex
+  post:
+    image: ${USER_NAME}/post:latest
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  comment:
+    image: ${USER_NAME}/comment:latest
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  ui:
+    image: ${USER_NAME}/ui:latest
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+    ports:
+      - "${UI_PORT}:9292/tcp"
+    networks:
+      - front_net
+```
+
+##### Разворачиваем сервисы
+
+```bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.yml config 2>/dev/null) DEV
+```
+
+##### Проверяем, что получилось: 
+
+```bash
+docker stack ps DEV
+```
+```commandline
+ID                  NAME                                          IMAGE                        NODE                DESIRED STATE       CURRENT STATE               ERROR               PORTS
+tdltc39nj8zi        DEV_node-exporter.sxvb300vi5n1qw3oj5hhxdoeu   prom/node-exporter:v0.15.2   worker-3            Running             Running 7 minutes ago                           
+0db4c3irczni        DEV_node-exporter.dfiw33hegvqyg9czngss6lp88   prom/node-exporter:v0.15.2   worker-2            Running             Running 14 minutes ago                          
+tsokokwzs79k        DEV_node-exporter.wqrt3dr64i3md1i1tej6ek1kd   prom/node-exporter:v0.15.2   worker-1            Running             Running 14 minutes ago                          
+lld3cn9wt71c        DEV_node-exporter.xu9sufx2b8awxw29fkb55o5o8   prom/node-exporter:v0.15.2   master-1            Running             Running 14 minutes ago                          
+vajezlu3lwvr        DEV_grafana.1                                 grafana/grafana:5.0.0        master-1            Running             Running 13 minutes ago                          
+qdw3f5p02sx2        DEV_cadvisor.1                                google/cadvisor:v0.29.0      worker-2            Running             Running 14 minutes ago                          
+c12ifi1ogvjp        DEV_alertmanager.1                            asomir/alertmanager:latest   master-1            Running             Running 13 minutes ago                          
+013atvpy3wpo        DEV_prometheus.1                              asomir/prometheus:latest     master-1            Running             Running 13 minutes ago                          
+836bqjmxzknt        DEV_post.1                                    asomir/post:latest           worker-1            Running             Running about an hour ago                       
+vd95hw5ezi1x        DEV_mongo.1                                   mongo:3.2                    master-1            Running             Running about an hour ago                       
+waqt3zjg2sli        DEV_comment.1                                 asomir/comment:latest        worker-2            Running             Running about an hour ago                       
+j7sipv4mhhrv        DEV_ui.1                                      asomir/ui:latest             worker-1            Running             Running about an hour ago                       
+yle6wlbgt7ls        DEV_comment.2                                 asomir/comment:latest        worker-1            Running             Running 26 minutes ago                          
+o0je63lkz2c3        DEV_ui.2                                      asomir/ui:latest             worker-2            Running             Running 26 minutes ago                          
+06yr6yn151vo        DEV_post.2                                    asomir/post:latest           worker-2            Running             Running 26 minutes ago                          
+mtzgtmyr33ex        DEV_post.3                                    asomir/post:latest           worker-3            Running             Preparing 28 seconds ago                        
+uoksf6n7k4w0        DEV_comment.3                                 asomir/comment:latest        worker-3            Running             Preparing 39 seconds ago                        
+r5k2puu687cb        DEV_ui.3                                      asomir/ui:latest             worker-1            Running             Running 20 minutes ago                          
+
+```
+
+Задание со звездой: 
+
+Видим, что сервисы распределились равномерно по всем нодам. node-exporter автоматически запустился на новой ноде, как только мы её добавили.
+Делаем вывод, что её заставил так вести mode: global
+
+
+### Как мы общаемся с приложением?
+
+##### У ui-компоненты приложения уже должен быть выставлен expose-порт, поэтому дополнять там ничего не нужно.
+
+
+```yamlex
+ports:
+    - "${UI_PORT}:9292/tcp"
+```
+
+Однако отметим, что внутренний механизм Routing mesh
+обеспечивает балансировку запросов пользователей
+между контейнерами UI-сервиса.
+1) В независимости от того, на какую ноду прийдет запрос,
+мы попадем на приложение (которое было опубликовано)
+2) Каждое новое TCP/UDP-соединение будет отправлено на
+следующий endpoint (round-robin балансировка)
+
+##### 1. Посмотрим, где запущен UI-сервис:
+
+```bash
+$ docker service ps DEV_ui
+```
+```commandline
+ID                  NAME                IMAGE               NODE                DESIRED STATE       CURRENT STATE          ERROR               PORTS
+j7sipv4mhhrv        DEV_ui.1            asomir/ui:latest    worker-1            Running             Running 10 hours ago                       
+o0je63lkz2c3        DEV_ui.2            asomir/ui:latest    worker-2            Running             Running 10 hours ago                       
+r5k2puu687cb        DEV_ui.3            asomir/ui:latest    worker-1            Running             Running 10 hours ago                       
+
+```
+
+
+##### 2. Получим список адресов:
+ ```bash
+docker-machine ip $(docker-machine ls -q)
+```
+##### 3. Зайдём в браузере на каждую из машин (с интервалом в 10-15с). Обратим внимание на id-контейнера
+
+```markdown
+worker-1
+http://35.205.186.249:9292/
+Microservices Reddit in 5e545064a8f6 container
+
+master-1
+http://35.205.239.130:9292/
+Microservices Reddit in 2ef6f9aac0ee container
+
+worker-2  
+http://35.189.241.95:9292/
+Microservices Reddit in 5e545064a8f6 container
+
+worker-3  
+http://35.205.173.12:9292/
+Microservices Reddit in 84ab726a4fc9 container
+
+```
+
+##### 4. ID не сходятся, потому что рамках кластера минимальная единица - это задача (task). Контейнер - лишь конкретный экземпляр задачи.
+
+##### ID контейнера можно увидеть, если выполнить
+
+```bash
+ docker inspect $(docker stack ps DEV -q --filter "Name=DEV_ui.1") --format "{{.Status.ContainerStatus.ContainerID}}"
+```
+
+### update_config
+
+##### Чтобы обеспечить минимальное время простоя приложения во время обновлений (zero-downtime), сконфигурируем параметры деплоя параметром update_config
+
+```yamlex
+service:
+    image: svc
+    deploy:
+      update_config:
+        parallelism: 2            # cколько контейнеров (группу) обновить одновременно?
+        delay: 5s                 # задержка между обновлениями групп контейнеров
+        failure_action: rollback  # что делать, если при обновлении возникла ошибка
+        monitor: 5s               # сколько следить за обновлением, пока не признать его удачным или ошибочным
+        max_failure_ratio: 2      # сколько раз обновление может пройти с ошибкой перед тем, как перейти к failure_action
+        order: start-first        # порядок обновлений (сначала убиваем старые и запускаем новые или наоборот) (только в compose 3.4)
+```
+
+### Памятка 
+
+1) parallelism - cколько контейнеров (группу) обновить
+одновременно?
+2) delay - задержка между обновлениями групп контейнеров
+3) order - порядок обновлений (сначала убиваем старые и
+запускаем новые или наоборот) (только в compose 3.4)
+Обработка ошибочных ситуаций
+4) failure_action - что делать, если при обновлении возникла ошибка
+5) monitor - сколько следить за обновлением, пока не признать его
+удачным или ошибочным
+6) max_failure_ratio - сколько раз обновление может пройти с
+ошибкой перед тем, как перейти к failure_action
+
+
+##### Определим, что приложение UI должно обновляться группами по 1 контейнеру с разрывом в 5 секунд.
+В случае возникновения проблем деплой останавливается (Старые и новые версии работают вместе)
+
+```yamlex
+services:
+  ui:
+    image: ${USER_NAME}/ui:${UI_VERSION}
+    deploy:
+      replicas: 3
+      update_config:
+        delay: 5s
+        parallelism: 1
+        failure_action: rollback
+      mode: replicated
+      placement:
+        constraints:
+          - node.role == worker
+    ports:
+      - "${UI_PORT}:9292/tcp"
+    networks:
+      - front_net
+```
+
+### failure_action
+
+Что делать, если обновление прошло с ошибкой?
+ - rollback - откатить все задачи на предыдущую версию
+ - pause (default) - приостановить обновление
+ - continue - продолжить обновление
+
+
+##### Deploy 
+
+```bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.yml config 2>/dev/null) DEV
+```
+##### Отслеживаем изменения
+
+```bash
+ docker service ps DEV_ui
+```
+
+### Задание
+
+###### Определить update_config для сервисов post и comment так, чтобы они обновлялись группами по 2 сервиса с разрывом в 10 секунд, а в случае неудач осуществлялся rollback.
+Отразить изменения в docker-compose.yml
+
+
+```yamlex
+  post:
+    image: ${USER_NAME}/post:latest
+    deploy:
+      mode: replicated
+      replicas: 3
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  comment:
+    image: ${USER_NAME}/comment:latest
+    deploy:
+      mode: replicated
+      replicas: 3
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+
+  ui:
+    image: ${USER_NAME}/ui:${UI_VERSION}
+    deploy:
+      replicas: 3
+      update_config:
+        delay: 5s
+        parallelism: 1
+        failure_action: rollback
+      mode: replicated
+      placement:
+        constraints:
+          - node.role == worker
+    ports:
+      - "${UI_PORT}:9292/tcp"
+    networks:
+      - front_net
+```
+
+### Ограничиваем ресурсы
+
+
+С помощью resources limits описываем максимум потребляемых
+приложениями CPU и памяти. Это обеспечит нам:
+1) Представление о том, сколько ресурсов нужно приложению
+2) Контроль Docker за тем, чтобы никто не превысил заданного порога (с помощью
+cgroups)
+3) Защиту сторонних приложений от неконтролируемого расхода ресурса контейнером
+
+### Задание
+##### Задать ограничения ресурсов для сервисов post и comment, ограничив каждое в 300 мегабайт памяти и в 30% процессорного времени. Изменения отразить в docker-compose.yml
+
+```yamlex
+  post:
+    image: ${USER_NAME}/post:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.30'
+          memory: 300M
+      mode: replicated
+      replicas: 3
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  comment:
+    image: ${USER_NAME}/comment:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.30'
+          memory: 300M
+      mode: replicated
+      replicas: 3
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+
+  ui:
+    image: ${USER_NAME}/ui:${UI_VERSION}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 150M
+      replicas: 3
+      update_config:
+        delay: 5s
+        parallelism: 1
+        failure_action: rollback
+      mode: replicated
+      placement:
+        constraints:
+          - node.role == worker
+    ports:
+      - "${UI_PORT}:9292/tcp"
+    networks:
+      - front_net
+```
+### Restart policy
+
+Если контейнер в рамках задачи завершит свою работу, то планировщик Swarm
+автоматически запустит новый (даже если он вручную остановлен).
+
+Мы можем поменять это поведение (для целей диагностики, например) так, чтобы
+контейнер перезапускался только при падении контейнера (on-failure).
+
+По-умолчанию контейнер будет бесконечно перезапускаться. Это может оказать
+сильную нагрузку на машину в целом. 
+
+##### Ограничим число попыток перезапуска 3-мя с интервалом в 3 секунды.
+
+```yamlex
+  ui:
+    image: ${USER_NAME}/ui:${UI_VERSION}
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        delay: 3s
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 150M
+      replicas: 3
+      update_config:
+        delay: 5s
+        parallelism: 1
+        failure_action: rollback
+      mode: replicated
+      placement:
+        constraints:
+          - node.role == worker
+
+```
+### Задание
+
+##### Задайте политику перезапуска для comment и post сервисов так, чтобы Swarm пытался перезапустить их при падении с ошибкой 10-15 раз с интервалом в 1 секунду.
+##### Изменения отразить в docker-compose.yml
+
+```yamlex
+  post:
+    image: ${USER_NAME}/post:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 12
+        delay: 1s
+      resources:
+        limits:
+          cpus: '0.30'
+          memory: 300M
+      mode: replicated
+      replicas: 3
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+
+  comment:
+    image: ${USER_NAME}/comment:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 13
+        delay: 1s
+      resources:
+        limits:
+          cpus: '0.30'
+          memory: 300M
+      mode: replicated
+      replicas: 3
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+    networks:
+      - front_net
+      - back_net
+```
+
+##### Deploy
+
+```bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.yml config 2>/dev/null) DEV
+```
+
+##### Задание
+
+Помимо сервисов приложения, у вас может быть инфраструктура, описанная в compose-файле (prometheus, node-
+exporter, grafana ...)
+
+Нужно выделить ее в отдельный compose-файл. С названием docker-compose-monitoring.yml
+В него выносится все что относится к этим сервисам (volumes, services)
+Запускать приложение вместе с мониторингом можно следующей командой (команда не работает, выпадает ошибка "Top-level object must be a mapping", хотя частям запускается)
+
+```bash
+docker stack deploy --compose-file=<(docker-compose -f docker-compose-monitoring.yml -f docker-compose.yml config 2>/dev/null)  DEV
+```
+
+
+
+
+
+
+
 # Homework 25
 
 ## Логирование и распределенная трассировка
@@ -533,11 +1522,6 @@ services:
 docker-compose -f docker-compose-logging.yml -f docker-compose.yml down
 docker-compose -f docker-compose-logging.yml -f docker-compose.yml up -d
 ```
-
-
-
-
-
 
 
 
