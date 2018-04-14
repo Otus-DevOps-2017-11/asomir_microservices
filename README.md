@@ -942,7 +942,6 @@ https://console.cloud.google.com/compute/disks
 
 
 
-
 # Homework-29. 
 ## Kubernetes. Запуск кластера и приложения. Модель безопасности.
 
