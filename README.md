@@ -1,3 +1,837 @@
+# Homework-31. CI/CD в Kubernetes
+
+## Helm
+
+```markdown
+Helm - пакетный менеджер для Kubernetes.
+
+С его помощью мы будем:
+
+1) Стандартизировать поставку приложения в Kubernetes
+2) Декларировать инфраструктуру
+3) Деплоить новые версии приложения
+
+Helm - клиент-серверное приложение.
+```
+### Helm - установка
+
+##### Установим его клиентскую часть - консольный клиент Helm:
+
+https://github.com/kubernetes/helm/releases
+
+ - распаковываем и размещаем исполняемый файл helm в директории исполнения (/usr/local/bin/ , /usr/bin, ...)
+ 
+ 
+```markdown
+Helm читает конфигурацию kubectl ( ~/.kube/config ) и сам
+определяет текущий контекст (кластер, пользователь,
+неймспейс)
+Если хотите сменить кластер, то либо меняйте контекст с
+помощью
+$ kubectl config set-context
+либо подгружайте helm’у собственный config-файл
+флагом --kube-context .
+```
+
+#### Установим серверную часть Helm’а - Tiller.
+```markdown
+Tiller - это аддон Kubernetes, т.е. Pod, который общается с API Kubernetes.
+Для этого понадобится ему выдать ServiceAccount и назначить роли RBAC, необходимые для работы.
+```
+
+##### Создайте файл tiller.yml и поместите в него манифест
+
+```yamlex
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tiller
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: tiller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: tiller
+    namespace: kube-system
+```
+
+```bash
+kubectl apply -f tiller.yml
+```
+
+##### Теперь запустим tiller-сервер
+
+```bash
+helm init --service-account tiller
+```
+> output
+
+```markdown
+Creating /home/asomir/.helm 
+Creating /home/asomir/.helm/repository 
+Creating /home/asomir/.helm/repository/cache 
+Creating /home/asomir/.helm/repository/local 
+Creating /home/asomir/.helm/plugins 
+Creating /home/asomir/.helm/starters 
+Creating /home/asomir/.helm/cache/archive 
+Creating /home/asomir/.helm/repository/repositories.yaml 
+Adding stable repo with URL: https://kubernetes-charts.storage.googleapis.com 
+Adding local repo with URL: http://127.0.0.1:8879/charts 
+$HELM_HOME has been configured at /home/asomir/.helm.
+
+Tiller (the Helm server-side component) has been installed into your Kubernetes Cluster.
+
+Please note: by default, Tiller is deployed with an insecure 'allow unauthenticated users' policy.
+For more information on securing your installation see: https://docs.helm.sh/using_helm/#securing-your-helm-installation
+Happy Helming!
+```
+
+##### Проверим
+
+```bash
+kubectl get pods -n kube-system --selector app=helm
+```
+
+```markdown
+NAME                             READY     STATUS    RESTARTS   AGE
+tiller-deploy-56f4644cbb-dhj9b   1/1       Running   0          1m
+```
+
+### Charts
+
+```markdown
+Chart - это пакет в Helm.
+
+Создаём директорию Charts в папке kubernetes со следующей структурой директорий:
+```
+```bash
+mkdir comment post reddit ui
+```
+
+##### Начнем разработку Chart’а для компоненты ui приложения
+
+ui/Chart.yaml helm предпочитает .yaml
+
+```yaml
+name: ui                                    # Реально значимыми являются поля name и version. 
+version: 1.0.0                              # От них зависит работа Helm’а с Chart’ом. Остальное - описания.
+description: OTUS reddit application UI
+maintainers:
+  - name: Alexander Akilin
+    email: asomirl@gmail.com
+appVersion: 1.0
+```
+
+#### Templates
+
+```markdown
+Основным содержимым Chart’ов являются шаблоны манифестов Kubernetes.
+
+1) Создаём директорию ui/templates
+2) Переносим в неё все манифесты, разработанные ранее для сервиса ui (ui-service, ui-deployment, ui-ingress)
+3) Переименуем их (уберите префикс “ui-“) и поменяем расширение на .yaml) - стилистические правки
+```
+```bash
+mv  ui* Charts/ui/templates/
+rename 's/yml/yaml/' *.yml
+rename 's/ui-//' ui-*
+cd ..
+cd ..
+tree
+```
+> output 
+
+```markdown
+└── ui
+    ├── Chart.yaml
+    └── templates
+        ├── deployment.yaml
+        ├── ingress.yaml
+        └── service.yaml
+
+```
+По-сути, это уже готовый пакет для установки в Kubernetes
+
+##### 1) Убедимся, что у нас не развернуты компоненты приложения в kubernetes. Если развернуты - удаляем
+
+```bash
+kubectl delete deploy ui -n dev
+kubectl delete service ui  -n dev
+kubectl delete ingress ui
+```
+##### 2) Установим Chart
+
+```bash
+helm install --name test-ui-1 ui/
+```
+> output
+
+```markdown
+NAME:   test-ui-1
+LAST DEPLOYED: Sun Apr 15 16:12:41 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1beta1/Deployment
+NAME  AGE
+ui    1s
+
+==> v1beta1/Ingress
+ui  1s
+
+==> v1/Service
+ui  1s
+```
+
+##### 3) Посмотрим, что получилось
+
+```bash
+helm ls
+```
+
+```markdown
+NAME            REVISION        UPDATED                         STATUS          CHART           NAMESPACE
+test-ui-1       1               Sun Apr 15 16:12:41 2018        DEPLOYED        ui-1.0.0        default  
+```
+
+##### Теперь сделаем так, чтобы можно было использовать 1 Chart для запуска нескольких экземпляров (релизов). Шаблонизируем его.
+
+ui/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}   # Нам нужно уникальное имя запущенного ресурса
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}                # Помечаем, что сервис из конкретного релиза
+spec:
+  type: NodePort
+  ports:
+  - port: 9292
+    protocol: TCP
+    targetPort: 9292
+  selector:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}                # Выбираем поды только из этого релиза
+```
+
+```markdown
+name: {{ .Release.Name }}-{{ .Chart.Name }}
+
+Здесь мы используем встроенные переменные
+
+.Release - группа переменных с информацией о релизе (конкретном запуске Chart’а в k8s)
+
+.Chart - группа переменных с информацией о Chart’е (содержимое файла Chart.yaml)
+
+Также еще есть группы переменных:
+
+.Template - информация о текущем шаблоне ( .Name и .BasePath)
+
+.Capabilities - информация о Kubernetes (версия, версии API)
+ 
+.Files.Get - получить содержимое файла
+```
+
+##### Шаблонизируем подобным образом остальные сущности
+
+ui/templates/deployment.yaml
+
+```markdown
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:                                     # важно, чтобы selector deployment’а нашел только нужные POD’ы.
+    matchLabels:
+      app: reddit
+      component: ui
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: ui-pod
+      labels:
+        app: reddit
+        component: ui
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: asomir/ui
+        name: ui
+        ports:
+        - containerPort: 9292
+          name: ui
+          protocol: TCP
+        env:
+        - name: ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+```
+
+ui/templates/ingress.yaml
+
+```markdown
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: {{ .Release.Name }}-{{ .Chart.Name }}
+          servicePort: 9292
+```
+
+##### Установим несколько релизов ui
+
+```bash
+helm install ui --name ui-1
+helm install ui --name ui-2 
+helm install ui --name ui-3
+```
+ui-1 ui-2 ui-3 - Имя релиза
+
+> output 
+
+```markdown
+NAME:   ui-3
+LAST DEPLOYED: Sun Apr 15 16:25:47 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Service
+NAME     AGE
+ui-3-ui  0s
+
+==> v1beta1/Deployment
+ui-3-ui  0s
+
+==> v1beta1/Ingress
+ui-3-ui  0s
+```
+##### Проверяем ингрессы
+
+```bash
+kubectl get ingress
+```
+>output
+
+```markdown
+NAME      HOSTS     ADDRESS          PORTS     AGE
+ui-1-ui   *         35.186.251.110   80        2m
+ui-2-ui   *         35.190.51.208    80        2m
+ui-3-ui   *         35.190.44.156    80        2m
+```
+> По IP-адресам можно попасть на разные релизы ui- приложений (необходимо подождать несколько минут).
+
+Мы уже сделали возможность запуска нескольких версий
+приложений из одного пакета манифестов, используя лишь
+встроенные переменные.
+
+##### Кастомизируем установку своими переменными (образ и порт). 
+
+ui/templates/deployment.yaml
+
+```yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: reddit
+      component: ui
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: ui
+      labels:
+        app: reddit
+        component: ui
+        release: {{ .Release.Name }}                                        
+    spec:
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"  # Ссылка на наш репозиторий и сам имедж 
+        name: ui
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}              # Параметризируем порт
+          name: ui
+          protocol: TCP
+        env:
+        - name: ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+```
+ui/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+spec:
+  type: NodePort
+  ports:
+  - port: {{ .Values.service.externalPort }}        # Параметризируем порт внешний
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}  # И внутренний
+  selector:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+```
+
+ui/templates/ingress.yaml
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        backend:
+          serviceName: {{ .Release.Name }}-{{ .Chart.Name }}
+          servicePort: {{ .Values.service.externalPort }}
+```
+
+##### Собственно, определяем значения переменных: 
+
+```yaml
+service:
+  internalPort: 9292
+  externalPort: 9292
+
+image:
+  repository: asomir/ui
+  tag: latest
+```
+
+##### Запускаем наши образы: 
+
+```bash
+helm upgrade ui-1 ui/
+helm install ui-2 ui/
+helm install ui-3 ui/
+```
+##### Мы собрали Chart для развертывания ui-компоненты приложения. Он должен иметь следующую структуру:
+
+```markdown
+└── ui
+    ├── Chart.yaml
+    └── templates
+        ├── deployment.yaml
+        ├── ingress.yaml
+        └── service.yaml
+```
+
+##### Осталось собрать пакеты для остальных компонент
+
+post/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: post
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.service.externalPort }}
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}
+  selector:
+    app: reddit
+    component: post
+    release: {{ .Release.Name }}
+```
+
+post/templates/deployment.yaml
+
+```yaml
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: post
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reddit
+      component: post
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: post
+      labels:
+        app: reddit
+        component: post
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        name: post
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: post
+          protocol: TCP
+        env:
+        - name: POST_DATABASE_HOST
+          value: postdb
+```
+
+```markdown
+Поскольку адрес БД может меняться в зависимости от условий запуска:
+• бд отдельно от кластера
+• бд запущено в отдельном релизе
+• ...
+, то создадим удобный шаблон для задания адреса БД.
+env:
+- name: POST_DATABASE_HOST
+value: {{ .Values.databaseHost }}
+
+Будем задавать бд через переменную databaseHost. Иногда лучше использовать подобный формат переменных
+вместо структур database.host, так как тогда прийдется определять структуру database, иначе helm выдаст ошибку.
+Используем функцию default. Если databaseHost не будет определена или ее значение будет пустым, то используется
+вывод функции printf (которая просто формирует строку <имя- релиза>-mongodb)
+
+value: {{ .Values.databaseHost | default (printf "%s-mongodb" .Release.Name) }}
+                                                       |
+                                                       release-name-mongodb
+В итоге должно получиться
+                                                       
+env:
+- name: POST_DATABASE_HOST
+  value: {{ .Values.databaseHost | default (printf "%s-mongodb" .Release.Name) }}
+             
+
+Теперь, если databaseHost не задано, то будет использован адрес базы, поднятой внутри релиза
+```
+post/values.yaml
+
+```yaml
+service:
+  internalPort: 5000
+  externalPort: 5000
+
+image:
+  repository: asomir/post
+  tag: latest
+
+databaseHost:
+```
+##### Шаблонизируем сервис comment:
+
+comment/templates/deployment.yaml
+
+```yaml
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reddit
+      component: comment
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: comment
+      labels:
+        app: reddit
+        component: comment
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        name: comment
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: comment
+          protocol: TCP
+        env:
+        - name: COMMENT_DATABASE_HOST
+          value: {{ .Values.databaseHost | default (printf "%s-mongodb" .Release.Name) }}
+```
+comment/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.service.externalPort }}
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}
+  selector:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+```
+
+comment/values.yaml
+
+```yaml
+service:
+  internalPort: 9292
+  externalPort: 9292
+
+image:
+  repository: chromko/comment
+  tag: latest
+
+databaseHost:
+```
+
+##### Итоговая структура выглядит вот так: 
+
+```markdown
+├── comment
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── values.yaml
+├── post
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── values.yaml
+├── reddit
+└── ui
+    ├── Chart.yaml
+    ├── templates
+    │   ├── deployment.yaml
+    │   ├── ingress.yaml
+    │   └── service.yaml
+    └── values.yaml
+
+```
+
+```markdown
+Также стоит отметить функционал helm по использованию helper’ов и функции templates.
+Helper - это написанная нами функция. В функция описывается, как правило, сложная логика.
+
+Шаблоны этих функций распологаются в файле _helpers.tpl
+```
+##### Пример функции comment.fullname :
+
+charts/comment/templates/_helpers.tpl
+
+```markdown
+{{- define "comment.fullname" -}}
+{{- printf "%s-%s" .Release.Name .Chart.Name }}
+{{- end -}}
+```
+которая в результате выдаст то же, что и:
+{{ .Release.Name }}-{{ .Chart.Name }}
+
+
+##### И заменим в соответствующие строчки в файле, чтобы использовать helper
+
+charts/comment/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "comment.fullname" . }}  # было name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.service.externalPort }}
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}
+  selector:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+```
+
+```markdown
+с помощью template вызывается функция comment.fullname, описанная ранее в файле _helpers.tpl
+```
+
+##### Структура ипортирующей функции template
+
+```markdown
+                {{ template "comment.fullname" . }}
+                    |               |          |
+                    
+         Функция template         Название    область видимости
+                                функции для     для импорта
+                                  импорта  
+                             
+“.”- вся область видимости всех переменных (можно передать .Chart , тогда .Values не будут доступны внутри функции)                             
+```
+
+## Задание
+
+1) Создать файл _helpers.tpl в папках templates сервисов ui, post и comment
+
+
+2) вставить функцию “<service>.fullname” в каждый _helpers.tpl файл. <service> заменить на имя чарта соотв. сервиса
+{{- define "post.fullname" -}}
+{{- define "comment.fullname" -}}
+{{- define "ui.fullname" -}}
+
+
+3) В каждом из шаблонов манифестов вставить следующую функцию там, где это требуется (большинство полей это name: )
+name: {{ template "comment.fullname" . }}
+name: {{ template "ui.fullname" . }}
+name: {{ template "post.fullname" . }}
+
+### Управление зависимостями
+
+##### Структура приобрела следующий вид: 
+
+```markdown
+├── comment
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   ├── _helpers.tpl
+│   │   └── service.yaml
+│   └── values.yaml
+├── post
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   ├── _helpers.tpl
+│   │   └── service.yaml
+│   └── values.yaml
+├── reddit
+└── ui
+    ├── Chart.yaml
+    ├── templates
+    │   ├── deployment.yaml
+    │   ├── _helpers.tpl
+    │   ├── ingress.yaml
+    │   └── service.yaml
+    └── values.yaml
+```
+
+Мы создали Chart’ы для каждой компоненты нашего приложения. Каждый из них можно запустить по-отдельности командой
+
+```bash
+helm install <chart-path> <release-name>
+```
+Но они будут запускаться в разных релизах, и не будут видеть друг друга.
+С помощью механизма управления зависимостями создадим единый Chart reddit, который объединит наши компоненты
+
+### Структура приложения reddit
+
+```markdown
+                        reddit
+                   /    |     |    \
+                  UI Mongo  Post  Comment
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Homework-30. Kubernetes. Networks ,Storages
 
 ## Сетевое взаимодействие

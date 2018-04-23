@@ -1,0 +1,10 @@
+---
+service:
+  internalPort: 9292
+  externalPort: 80
+
+image:
+  repository: asomir/ui
+  tag: latest
+
+databaseHost:
