@@ -17,3 +17,6 @@ src/.gitignore
 src/README.md
 src/src.tar.gz
 .env
+Gitlab_ci/
+kubernetes/Charts/gitlab-omnibus/
+kubernetes/Charts/reddit/requirements.lock
