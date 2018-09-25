@@ -13,7 +13,8 @@ jdauphant.nginx
 .cache
 docker-monolith/
 build_info.txt
-src/.gitignore
+/src/src.tar.gz
+/src/.gitignore
 src/README.md
 src/src.tar.gz
 .env

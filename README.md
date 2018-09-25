@@ -5336,6 +5336,7 @@ https://console.cloud.google.com/compute/disks
 
 
 
+
 # Homework-29. 
 ## Kubernetes. Запуск кластера и приложения. Модель безопасности.
 
@@ -6532,6 +6533,7 @@ clusterrolebinding.rbac.authorization.k8s.io "kubernetes-dashboard" created
 
 
 
+>>>>>>> 465e067982737ac4cef4342160ffe51a15ee3262
 # Homework-28
 ## Введение в Kubernetes
 ### Создание примитивов
@@ -10370,7 +10372,10 @@ docker-machine create --driver google \
 ##### Узнаем IP адрес
 > docker-machine ip vm1
 
-104.154.181.55
+
+35.192.64.106
+
+
 
 ##### Билдим образы сервисов
 
@@ -10655,13 +10660,15 @@ ADD config.yml /etc/alertmanager/
 
 ```yamlex
 global:
-slack_api_url: 'https://hooks.slack.com/services/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'
+
+  slack_api_url: 'https://hooks.slack.com/services/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'
 route:
-receiver: 'slack-notifications'
+  receiver: 'slack-notifications'
 receivers:
-- name: 'slack-notifications'
-slack_configs:
-- channel: '#alexander-akilin'
+  - name: 'slack-notifications'
+    slack_configs:
+    - channel: '#alexander-akilin'
+
 ```
 
 ##### Собираем образ alertmanager:
@@ -10730,6 +10737,19 @@ gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
 
 ##### Запушим собранные образы на DockerHub:
 
+
+
+$ docker login
+Login Succeeded
+
+```bash
+docker push $USER_NAME/ui
+docker push $USER_NAME/comment
+docker push $USER_NAME/post
+docker push $USER_NAME/prometheus
+docker push $USER_NAME/alertmanager
+
+```
 
 
 
