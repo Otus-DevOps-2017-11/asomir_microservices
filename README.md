@@ -1,3 +1,4397 @@
+# Homework-32. Kubernetes. Мониторинг и логирование
+
+### Подготовка
+##### Разворачиваем кластер k8s:
+
+• 2 ноды g1-small (1,5 ГБ)
+• 1 нода n1-standard-2 (7,5 ГБ)
+В настройках:
+• Stackdriver Logging - Отключен
+• Stackdriver Monitoring - Отключен
+• Устаревшие права доступа - Включено
+
+```bash
+gcloud container clusters get-credentials cluster-1 --zone us-central1-a --project docker-194414
+helm init
+helm ls
+```
+
+> output
+Error: Get http://localhost:8080/api/v1/namespaces/kube-system/configmaps?labelSelector=OWNER%!D(MISSING)TILLER: dial tcp [::1]:8080: connect: connection refused
+
+```bash
+helm init --upgrade
+```
+>output
+$HELM_HOME has been configured at /home/asomir/.helm.
+Tiller (the Helm server-side component) has been upgraded to the current version.
+
+```bash
+kubectl --namespace=kube-system edit deployment/tiller-deploy
+```
+
+and changed automountServiceAccountToken to true
+
+
+##### Из Helm-чарта установим ingress-контроллер nginx
+
+```bash
+helm install stable/nginx-ingress --name nginx
+```
+```yaml
+NAME:   nginx
+LAST DEPLOYED: Sun Apr 29 23:41:07 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Service
+NAME                                 AGE
+nginx-nginx-ingress-controller       2s
+nginx-nginx-ingress-default-backend  2s
+
+==> v1beta1/Deployment
+nginx-nginx-ingress-controller       2s
+nginx-nginx-ingress-default-backend  2s
+
+==> v1beta1/PodDisruptionBudget
+nginx-nginx-ingress-controller       2s
+nginx-nginx-ingress-default-backend  2s
+
+==> v1/ConfigMap
+nginx-nginx-ingress-controller  2s
+
+
+NOTES:
+The nginx-ingress controller has been installed.
+It may take a few minutes for the LoadBalancer IP to be available.
+You can watch the status by running 'kubectl --namespace default get services -o wide -w nginx-nginx-ingress-controller'
+
+An example Ingress that makes use of the controller:
+
+  apiVersion: extensions/v1beta1
+  kind: Ingress
+  metadata:
+    annotations:
+      kubernetes.io/ingress.class: nginx
+    name: example
+    namespace: foo
+  spec:
+    rules:
+      - host: www.example.com
+        http:
+          paths:
+            - backend:
+                serviceName: exampleService
+                servicePort: 80
+              path: /
+    # This section is only required if TLS is to be enabled for the Ingress
+    tls:
+        - hosts:
+            - www.example.com
+          secretName: example-tls
+
+If TLS is enabled for the Ingress, a Secret containing the certificate and key must also be provided:
+
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: example-tls
+    namespace: foo
+  data:
+    tls.crt: <base64 encoded cert>
+    tls.key: <base64 encoded key>
+  type: kubernetes.io/tls
+```
+
+```bash
+kubectl get svc
+```
+>output
+##### Найдём IP-адрес, выданный nginx’у
+```markdown
+NAME                                  TYPE           CLUSTER-IP     EXTERNAL-IP      PORT(S)                      AGE
+kubernetes                            ClusterIP      10.11.240.1    <none>           443/TCP                      2h
+nginx-nginx-ingress-controller        LoadBalancer   10.11.251.27   35.192.109.155   80:31189/TCP,443:31618/TCP   1m
+nginx-nginx-ingress-default-backend   ClusterIP      10.11.251.62   <none>           80/TCP                       1m
+
+```
+
+##### Add in /etc/hosts
+
+```bash
+nano /etc/hosts
+```
+
+35.188.165.83  reddit reddit-prometheus reddit-grafana reddit-non-prod production reddit-kibana staging prod
+
+## Установим Prometheus
+
+##### 1) Склонируем репозиторий с чартами
+
+```bash
+git clone https://github.com/kubernetes/charts.git kube-charts
+```
+
+##### 2) Скачаем PR, в котором включена поддержка версии 2.0
+```bash
+cd kube-charts ; git fetch origin pull/2767/head:prom_2.0
+```
+##### 3) Переключимся на ветку с этим PR
+````bash
+git checkout prom_2.0 ; cd ..
+````
+###### 4) Переместим чарт c prometheus в нашу директорию charts
+```bash
+ cp -r kube-charts/stable/prometheus <директория kubernetes/charts>
+```
+
+##### 5) Удалим репозиторий
+```bash
+rm -r kube-charts
+```
+
+##### 6) Перейдем в директорию с чартом prometheus
+```bash
+cd Charts/prometheus
+```
+##### Создаём внутри директории чарта файл custom_values.yml:
+
+```yaml
+rbac:
+  create: false
+
+alertmanager:
+  ## If false, alertmanager will not be installed
+  ##
+  enabled: false
+
+  # Defines the serviceAccountName to use when `rbac.create=false`
+  serviceAccountName: default
+
+  ## alertmanager container name
+  ##
+  name: alertmanager
+
+  ## alertmanager container image
+  ##
+  image:
+    repository: prom/alertmanager
+    tag: v0.10.0
+    pullPolicy: IfNotPresent
+
+  ## Additional alertmanager container arguments
+  ##
+  extraArgs: {}
+
+  ## The URL prefix at which the container can be accessed. Useful in the case the '-web.external-url' includes a slug
+  ## so that the various internal URLs are still able to access as they are in the default case.
+  ## (Optional)
+  baseURL: "/"
+
+  ## Additional alertmanager container environment variable
+  ## For instance to add a http_proxy
+  ##
+  extraEnv: {}
+
+  ## ConfigMap override where fullname is {{.Release.Name}}-{{.Values.alertmanager.configMapOverrideName}}
+  ## Defining configMapOverrideName will cause templates/alertmanager-configmap.yaml
+  ## to NOT generate a ConfigMap resource
+  ##
+  configMapOverrideName: ""
+
+  ingress:
+    ## If true, alertmanager Ingress will be created
+    ##
+    enabled: false
+
+    ## alertmanager Ingress annotations
+    ##
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+
+    ## alertmanager Ingress hostnames
+    ## Must be provided if Ingress is enabled
+    ##
+    hosts: []
+    #   - alertmanager.domain.com
+
+    ## alertmanager Ingress TLS configuration
+    ## Secrets must be manually created in the namespace
+    ##
+    tls: []
+    #   - secretName: prometheus-alerts-tls
+    #     hosts:
+    #       - alertmanager.domain.com
+
+  ## Alertmanager Deployment Strategy type
+  # strategy:
+  #   type: Recreate
+
+  ## Node labels for alertmanager pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  persistentVolume:
+    ## If true, alertmanager will create/use a Persistent Volume Claim
+    ## If false, use emptyDir
+    ##
+    enabled: true
+
+    ## alertmanager data Persistent Volume access modes
+    ## Must match those of existing PV or dynamic provisioner
+    ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+    ##
+    accessModes:
+      - ReadWriteOnce
+
+    ## alertmanager data Persistent Volume Claim annotations
+    ##
+    annotations: {}
+
+    ## alertmanager data Persistent Volume existing claim name
+    ## Requires alertmanager.persistentVolume.enabled: true
+    ## If defined, PVC must be created manually before volume will be bound
+    existingClaim: ""
+
+    ## alertmanager data Persistent Volume mount root path
+    ##
+    mountPath: /data
+
+    ## alertmanager data Persistent Volume size
+    ##
+    size: 2Gi
+
+    ## alertmanager data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    # storageClass: "-"
+
+    ## Subdirectory of alertmanager data Persistent Volume to mount
+    ## Useful if the volume's root directory is not empty
+    ##
+    subPath: ""
+
+  ## Annotations to be added to alertmanager pods
+  ##
+  podAnnotations: {}
+
+  replicaCount: 1
+
+  ## alertmanager resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: {}
+    # limits:
+    #   cpu: 10m
+    #   memory: 32Mi
+    # requests:
+    #   cpu: 10m
+    #   memory: 32Mi
+
+  service:
+    annotations: {}
+    labels: {}
+    clusterIP: ""
+
+    ## List of IP addresses at which the alertmanager service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 80
+    # nodePort: 30000
+    type: ClusterIP
+
+## Monitors ConfigMap changes and POSTs to a URL
+## Ref: https://github.com/jimmidyson/configmap-reload
+##
+configmapReload:
+  ## configmap-reload container name
+  ##
+  name: configmap-reload
+
+  ## configmap-reload container image
+  ##
+  image:
+    repository: jimmidyson/configmap-reload
+    tag: v0.1
+    pullPolicy: IfNotPresent
+
+  ## configmap-reload resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: {}
+
+kubeStateMetrics:
+  ## If false, kube-state-metrics will not be installed
+  ##
+  enabled: false
+
+  # Defines the serviceAccountName to use when `rbac.create=false`
+  serviceAccountName: default
+
+  ## kube-state-metrics container name
+  ##
+  name: kube-state-metrics
+
+  ## kube-state-metrics container image
+  ##
+  image:
+    repository: gcr.io/google_containers/kube-state-metrics
+    tag: v1.1.0
+    pullPolicy: IfNotPresent
+
+  ## Node labels for kube-state-metrics pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to kube-state-metrics pods
+  ##
+  podAnnotations: {}
+
+  replicaCount: 1
+
+  ## kube-state-metrics resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: {}
+    # limits:
+    #   cpu: 10m
+    #   memory: 16Mi
+    # requests:
+    #   cpu: 10m
+    #   memory: 16Mi
+
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+    labels: {}
+
+    clusterIP: None
+
+    ## List of IP addresses at which the kube-state-metrics service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 80
+    type: ClusterIP
+
+nodeExporter:
+  ## If false, node-exporter will not be installed
+  ##
+  enabled: false
+
+  # Defines the serviceAccountName to use when `rbac.create=false`
+  serviceAccountName: default
+
+  ## node-exporter container name
+  ##
+  name: node-exporter
+
+  ## node-exporter container image
+  ##
+  image:
+    repository: prom/node-exporter
+    tag: v0.15.1
+    pullPolicy: IfNotPresent
+
+  ## Custom Update Strategy
+  ##
+  updateStrategy:
+    type: OnDelete
+
+  ## Additional node-exporter container arguments
+  ##
+  extraArgs: {}
+
+  ## Additional node-exporter hostPath mounts
+  ##
+  extraHostPathMounts: []
+    # - name: textfile-dir
+    #   mountPath: /srv/txt_collector
+    #   hostPath: /var/lib/node-exporter
+    #   readOnly: true
+
+  ## Node tolerations for node-exporter scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for node-exporter pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to node-exporter pods
+  ##
+  podAnnotations: {}
+
+  ## node-exporter resource limits & requests
+  ## Ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: {}
+    # limits:
+    #   cpu: 200m
+    #   memory: 50Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 30Mi
+
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+    labels: {}
+
+    clusterIP: None
+
+    ## List of IP addresses at which the node-exporter service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    hostPort: 9100
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 9100
+    type: ClusterIP
+
+server:
+  ## Prometheus server container name
+  ##
+  name: server
+
+  # Defines the serviceAccountName to use when `rbac.create=false`
+  serviceAccountName: default
+
+  ## Prometheus server container image
+  ##
+  image:
+    repository: prom/prometheus
+    tag: v2.0.0
+    pullPolicy: IfNotPresent
+
+  ## (optional) alertmanager hostname
+  ## only used if alertmanager.enabled = false
+  alertmanagerHostname: ""
+
+  ## The URL prefix at which the container can be accessed. Useful in the case the '-web.external-url' includes a slug
+  ## so that the various internal URLs are still able to access as they are in the default case.
+  ## (Optional)
+  baseURL: ""
+
+  ## Additional Prometheus server container arguments
+  ##
+  extraArgs: {}
+
+  ## Additional Prometheus server hostPath mounts
+  ##
+  extraHostPathMounts: []
+    # - name: certs-dir
+    #   mountPath: /etc/kubernetes/certs
+    #   hostPath: /etc/kubernetes/certs
+    #   readOnly: true
+
+  ## ConfigMap override where fullname is {{.Release.Name}}-{{.Values.server.configMapOverrideName}}
+  ## Defining configMapOverrideName will cause templates/server-configmap.yaml
+  ## to NOT generate a ConfigMap resource
+  ##
+  configMapOverrideName: ""
+
+  ingress:
+    ## If true, Prometheus server Ingress will be created
+    ##
+    enabled: true
+
+    ## Prometheus server Ingress annotations
+    ##
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+
+    ## Prometheus server Ingress hostnames
+    ## Must be provided if Ingress is enabled
+    ##
+    hosts:
+     - reddit-prometheus
+
+    ## Prometheus server Ingress TLS configuration
+    ## Secrets must be manually created in the namespace
+    ##
+    tls: []
+    #   - secretName: prometheus-server-tls
+    #     hosts:
+    #       - prometheus.domain.com
+
+  ## Server Deployment Strategy type
+  # strategy:
+  #   type: Recreate
+
+  ## Node tolerations for server scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for Prometheus server pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  nodeSelector: {}
+
+  persistentVolume:
+    ## If true, Prometheus server will create/use a Persistent Volume Claim
+    ## If false, use emptyDir
+    ##
+    enabled: true
+
+    ## Prometheus server data Persistent Volume access modes
+    ## Must match those of existing PV or dynamic provisioner
+    ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+    ##
+    accessModes:
+      - ReadWriteOnce
+
+    ## Prometheus server data Persistent Volume annotations
+    ##
+    annotations: {}
+
+    ## Prometheus server data Persistent Volume existing claim name
+    ## Requires server.persistentVolume.enabled: true
+    ## If defined, PVC must be created manually before volume will be bound
+    existingClaim: ""
+
+    ## Prometheus server data Persistent Volume mount root path
+    ##
+    mountPath: /data
+
+    ## Prometheus server data Persistent Volume size
+    ##
+    size: 8Gi
+
+    ## Prometheus server data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    # storageClass: "-"
+
+    ## Subdirectory of Prometheus server data Persistent Volume to mount
+    ## Useful if the volume's root directory is not empty
+    ##
+    subPath: ""
+
+  ## Annotations to be added to Prometheus server pods
+  ##
+  podAnnotations: {}
+    # iam.amazonaws.com/role: prometheus
+
+  replicaCount: 1
+
+  ## Prometheus server resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: {}
+    # limits:
+    #   cpu: 500m
+    #   memory: 512Mi
+    # requests:
+    #   cpu: 500m
+    #   memory: 512Mi
+
+  service:
+    annotations: {}
+    labels: {}
+    clusterIP: ""
+
+    ## List of IP addresses at which the Prometheus server service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 80
+    type: LoadBalancer
+
+  ## Prometheus server pod termination grace period
+  ##
+  terminationGracePeriodSeconds: 300
+
+  ## Prometheus data retention period (i.e 360h)
+  ##
+  retention: ""
+
+pushgateway:
+  ## If false, pushgateway will not be installed
+  ##
+  enabled: false
+
+  ## pushgateway container name
+  ##
+  name: pushgateway
+
+  ## pushgateway container image
+  ##
+  image:
+    repository: prom/pushgateway
+    tag: v0.4.0
+    pullPolicy: IfNotPresent
+
+  ## Additional pushgateway container arguments
+  ##
+  extraArgs: {}
+
+  ingress:
+    ## If true, pushgateway Ingress will be created
+    ##
+    enabled: false
+
+    ## pushgateway Ingress annotations
+    ##
+    annotations:
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+
+    ## pushgateway Ingress hostnames
+    ## Must be provided if Ingress is enabled
+    ##
+    hosts: []
+    #   - pushgateway.domain.com
+
+    ## pushgateway Ingress TLS configuration
+    ## Secrets must be manually created in the namespace
+    ##
+    tls: []
+    #   - secretName: prometheus-alerts-tls
+    #     hosts:
+    #       - pushgateway.domain.com
+
+  ## Node labels for pushgateway pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to pushgateway pods
+  ##
+  podAnnotations: {}
+
+  replicaCount: 1
+
+  ## pushgateway resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: {}
+    # limits:
+    #   cpu: 10m
+    #   memory: 32Mi
+    # requests:
+    #   cpu: 10m
+    #   memory: 32Mi
+
+  service:
+    annotations:
+      prometheus.io/probe: pushgateway
+    labels: {}
+    clusterIP: ""
+
+    ## List of IP addresses at which the pushgateway service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 9091
+    type: ClusterIP
+
+## alertmanager ConfigMap entries
+##
+alertmanagerFiles:
+  alertmanager.yml: |-
+    global:
+      # slack_api_url: ''
+
+    receivers:
+      - name: default-receiver
+        # slack_configs:
+        #  - channel: '@you'
+        #    send_resolved: true
+
+    route:
+      group_wait: 10s
+      group_interval: 5m
+      receiver: default-receiver
+      repeat_interval: 3h
+
+## Prometheus server ConfigMap entries
+##
+serverFiles:
+  alerts: {}
+  rules: {}
+
+  prometheus.yml:
+    rule_files:
+      - /etc/config/rules
+      - /etc/config/alerts
+
+    global:
+      scrape_interval: 30s
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+            - localhost:9090
+
+      # A scrape configuration for running Prometheus on a Kubernetes cluster.
+      # This uses separate scrape configs for cluster components (i.e. API server, node)
+      # and services to allow each to use different authentication configs.
+      #
+      # Kubernetes labels will be added as Prometheus labels on metrics via the
+      # `labelmap` relabeling action.
+
+      # Scrape config for API servers.
+      #
+      # Kubernetes exposes API servers as endpoints to the default/kubernetes
+      # service so this uses `endpoints` role and uses relabelling to only keep
+      # the endpoints associated with the default/kubernetes service using the
+      # default named port `https`. This works for single API server deployments as
+      # well as HA API server deployments.
+      - job_name: 'kubernetes-apiservers'
+
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        # Default to scraping over https. If required, just disable this or change to
+        # `http`.
+        scheme: https
+
+        # This TLS & bearer token file config is used to connect to the actual scrape
+        # endpoints for cluster components. This is separate to discovery auth
+        # configuration because discovery & scraping are two separate concerns in
+        # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+        # the cluster. Otherwise, more config options have to be provided within the
+        # <kubernetes_sd_config>.
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          # If your node certificates are self-signed or use a different CA to the
+          # master CA, then disable certificate verification below. Note that
+          # certificate verification is an integral part of a secure infrastructure
+          # so this should only be disabled in a controlled environment. You can
+          # disable certificate verification by uncommenting the line below.
+          #
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        # Keep only the default/kubernetes service endpoints for the https port. This
+        # will add targets for each API server which Kubernetes adds an endpoint to
+        # the default/kubernetes service.
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+
+      - job_name: 'kubernetes-nodes'
+
+        # Default to scraping over https. If required, just disable this or change to
+        # `http`.
+        scheme: https
+
+        # This TLS & bearer token file config is used to connect to the actual scrape
+        # endpoints for cluster components. This is separate to discovery auth
+        # configuration because discovery & scraping are two separate concerns in
+        # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+        # the cluster. Otherwise, more config options have to be provided within the
+        # <kubernetes_sd_config>.
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          # If your node certificates are self-signed or use a different CA to the
+          # master CA, then disable certificate verification below. Note that
+          # certificate verification is an integral part of a secure infrastructure
+          # so this should only be disabled in a controlled environment. You can
+          # disable certificate verification by uncommenting the line below.
+          #
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        kubernetes_sd_configs:
+          - role: node
+
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+      # Scrape config for service endpoints.
+      #
+      # The relabeling allows the actual service scrape endpoint to be configured
+      # via the following annotations:
+      #
+      # * `prometheus.io/scrape`: Only scrape services that have a value of `true`
+      # * `prometheus.io/scheme`: If the metrics endpoint is secured then you will need
+      # to set this to `https` & most likely set the `tls_config` of the scrape config.
+      # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+      # * `prometheus.io/port`: If the metrics are exposed on a different port to the
+      # service then set this appropriately.
+      - job_name: 'kubernetes-service-endpoints'
+
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+            action: replace
+            target_label: __scheme__
+            regex: (https?)
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+)(?::\d+);(\d+)
+            replacement: $1:$2
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            action: replace
+            target_label: kubernetes_name
+
+      - job_name: 'prometheus-pushgateway'
+        honor_labels: true
+
+        kubernetes_sd_configs:
+          - role: service
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+            action: keep
+            regex: pushgateway
+
+      # Example scrape config for probing services via the Blackbox Exporter.
+      #
+      # The relabeling allows the actual service scrape endpoint to be configured
+      # via the following annotations:
+      #
+      # * `prometheus.io/probe`: Only probe services that have a value of `true`
+      - job_name: 'kubernetes-services'
+
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+
+        kubernetes_sd_configs:
+          - role: service
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+            action: keep
+            regex: true
+          - source_labels: [__address__]
+            target_label: __param_target
+          - target_label: __address__
+            replacement: blackbox
+          - source_labels: [__param_target]
+            target_label: instance
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: kubernetes_name
+
+      # Example scrape config for pods
+      #
+      # The relabeling allows the actual pod scrape endpoint to be configured via the
+      # following annotations:
+      #
+      # * `prometheus.io/scrape`: Only scrape pods that have a value of `true`
+      # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+      # * `prometheus.io/port`: Scrape the pod on the indicated port instead of the default of `9102`.
+      - job_name: 'kubernetes-pods'
+
+        kubernetes_sd_configs:
+          - role: pod
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: (.+):(?:\d+);(\d+)
+            replacement: ${1}:${2}
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
+networkPolicy:
+  ## Enable creation of NetworkPolicy resources.
+  ##
+  enabled: false
+```
+
+```markdown
+Основные отличия от values.yml:
+• отключена часть устанавливаемых сервисов
+(pushgateway, alertmanager, kube-state-metrics)
+• включено создание Ingress’а для подключения через
+nginx
+• поправлен endpoint для сбора метрик cadvisor
+• уменьшен интервал сбора метрик (с 1 минуты до 30
+секунд)
+```
+
+##### Запустим Prometheus в k8s
+```bash
+helm upgrade prom . -f custom_values.yml --install
+```
+> output
+
+```markdown
+Release "prom" does not exist. Installing it now.
+NAME:   prom
+LAST DEPLOYED: Mon Apr 30 00:17:31 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1beta1/Deployment
+NAME                    AGE
+prom-prometheus-server  3s
+
+==> v1beta1/Ingress
+prom-prometheus-server  3s
+
+==> v1/ConfigMap
+prom-prometheus-server  3s
+
+==> v1/PersistentVolumeClaim
+prom-prometheus-server  3s
+
+==> v1/Service
+prom-prometheus-server  3s
+
+
+NOTES:
+The Prometheus server can be accessed via port 80 on the following DNS name from within your cluster:
+prom-prometheus-server.default.svc.cluster.local
+
+From outside the cluster, the server URL(s) are:
+http://reddit-prometheus
+
+
+
+
+
+For more information on running Prometheus, visit:
+https://prometheus.io/
+```
+### Targets
+
+http://reddit-prometheus
+
+##### Status-Targets
+
+```markdown
+У нас уже присутствует ряд endpoint’ов для сбора метрик
+• Метрики API-сервера
+• метрики нод с cadvisor’ов
+• сам prometheus
+```
+
+> Отметим, что можно собирать метрики cadvisor’а (который уже является частью kubelet) через проксирующий запрос в kube-api-server.
+
+```markdown
+Если зайти по ssh на любую из машин кластера и запросить 
+
+$ curl http://localhost:4194/metrics
+
+то получим те же метрики у kubelet напрямую. Но вариант с kube-api предпочтительней, т.к. этот трафик шифруется TLS и требует аутентификации.
+```
+##### Таргеты для сбора метрик найдены с помощью service discovery (SD), настроенного в конфиге prometheus (лежит в custom_values.yml)
+
+
+```markdown
+prometheus.yml:
+...
+- job_name: 'kubernetes-apiservers'
+...
+- job_name: 'kubernetes-nodes'
+kubernetes_sd_configs:                                                      # Настройки Service Discovery (для поиска target’ов)
+- role: node
+
+
+scheme: https                                                               # Настройки подключения к target’ам (для сбора метрик)
+tls_config:
+ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+insecure_skip_verify: true
+bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+
+relabel_configs:                                                             # Настройки различных меток, фильтрация найденных таргетов, их изменение
+
+```
+```markdown
+Использование Service Discovery в kubernetes позволяет нам динамично менять кластер (как сами хосты, так и сервисы и приложения)
+Цели для мониторинга находим c помощью запросов к k8s API:
+```
+```yaml
+scrape_configs:
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+    - role: node 
+```
+
+```markdown
+Role:
+
+объект, который нужно найти:
+• node
+• endpoints
+• pod
+• service
+• ingress
+```
+
+```yaml
+scrape_configs:
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+    - role: node
+```
+Targets:
+• gke-cluster-1-default-pool-f9c66281-kxrc
+• gke-cluster-1-default-pool-f9c66281-8gkc
+• gke-cluster-1-big-pool-b4209075-jlnq
+
+```markdown
+Т.к. сбор метрик prometheus осуществляется поверх стандартного HTTP-протокола, то могут понадобится доп.
+настройки для безопасного доступа к метрикам.
+Ниже приведены настройки для сбора метрик из k8s API.
+
+scheme: https
+tls_config:
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    insecure_skip_verify: true
+bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+1) Схема подключения - http (default) или https
+2) Конфиг TLS - коревой сертификат сервера для проверки достоверности сервера
+3) Токен для аутентификации на сервере
+```
+
+```markdown
+relabel_configs:                
+    - action: labelmap                                      # 1) преобразовать все k8s лейблы таргета в лейблы prometheus
+      regex: __meta_kubernetes_node_label_(.+)
+    - target_label: __address__                             # 2) Поменять лейбл для адреса сбора метрик
+      replacement: kubernetes.default.svc:443
+    - source_labels: [__meta_kubernetes_node_name]          # 3) Поменять лейбл для пути сбора метрик
+      regex: (.+)
+      target_label: __metrics_path__
+      replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+```
+
+### Metrics
+
+Все найденные на эндпоинтах метрики сразу же отобразятся в списке (вкладка Graph). Метрики Cadvisor начинаются с container_.
+
+Cadvisor собирает лишь информацию о потреблении ресурсов ипроизводительности отдельных docker-контейнеров. При этом
+он ничего не знает о сущностях k8s (деплойменты, репликасеты, ...).
+##### Для сбора этой информации будем использовать сервис kube-state-metrics. Он входит в чарт Prometheus. Включим его.
+prometheus/custom_values.yml
+
+```yaml
+kubeStateMetrics:
+  ## If false, kube-state-metrics will not be installed
+  ##
+  enabled: true
+```
+
+Обновим релиз
+```bash
+ helm upgrade prom ./prometheus -f custom_values.yml --install
+```
+> output
+
+```markdown
+LAST DEPLOYED: Mon Apr 30 01:17:30 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/ConfigMap
+NAME                    AGE
+prom-prometheus-server  1h
+
+==> v1/PersistentVolumeClaim
+prom-prometheus-server  1h
+
+==> v1/Service
+prom-prometheus-kube-state-metrics  5s
+prom-prometheus-server              1h
+
+==> v1beta1/Deployment
+prom-prometheus-kube-state-metrics  5s
+prom-prometheus-server              1h
+
+==> v1beta1/Ingress
+prom-prometheus-server  1h
+
+
+NOTES:
+The Prometheus server can be accessed via port 80 on the following DNS name from within your cluster:
+prom-prometheus-server.default.svc.cluster.local
+
+From outside the cluster, the server URL(s) are:
+http://reddit-prometheus
+
+For more information on running Prometheus, visit:
+https://prometheus.io/
+```
+
+```markdown
+в Targets появился kubernetes-service-endpoints (1/1 up)
+в Graph набираем kube и получаем огромный список метрик
+
+```
+### Задание
+##### По аналогии с kube_state_metrics включите (enabled: true) поды node-exporter в custom_values.yml. Проверьте, что метрики начали собираться с них.
+
+```markdown
+nodeExporter:
+  ## If false, node-exporter will not be installed
+  ##
+  enabled: true
+
+```
+```bash
+ helm upgrade prom ./prometheus -f custom_values.yml --install
+```
+
+> output
+
+```markdown
+Release "prom" has been upgraded. Happy Helming!
+LAST DEPLOYED: Mon Apr 30 01:26:25 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/ConfigMap
+NAME                    AGE
+prom-prometheus-server  1h
+
+==> v1/PersistentVolumeClaim
+prom-prometheus-server  1h
+
+==> v1/Service
+prom-prometheus-kube-state-metrics  8m
+prom-prometheus-node-exporter       3s
+prom-prometheus-server              1h
+
+==> v1beta1/DaemonSet
+prom-prometheus-node-exporter  3s
+
+==> v1beta1/Deployment
+prom-prometheus-kube-state-metrics  8m
+prom-prometheus-server              1h
+
+==> v1beta1/Ingress
+prom-prometheus-server  1h
+
+NOTES:
+The Prometheus server can be accessed via port 80 on the following DNS name from within your cluster:
+prom-prometheus-server.default.svc.cluster.local
+
+From outside the cluster, the server URL(s) are:
+http://reddit-prometheus
+
+For more information on running Prometheus, visit:
+https://prometheus.io/
+```
+
+```markdown
+node_exporter_build_info
+
+node_exporter_build_info{app="prometheus",branch="HEAD",chart="prometheus-5.0.0",component="node-exporter",goversion="go1.9.2",heritage="Tiller",instance="10.128.0.2:9100",job="kubernetes-service-endpoints",kubernetes_name="prom-prometheus-node-exporter",kubernetes_namespace="default",release="prom",revision="ba5da2c29ae7f6209a88cb58676ba5ba029ad785",version="0.15.1"}
+
+```
+### Метрики приложений
+
+##### Запустите приложение из helm чарта reddit
+```bash
+helm upgrade reddit-test ./reddit --install
+```
+
+> output
+
+```markdown
+Release "reddit-test" does not exist. Installing it now.
+NAME:   reddit-test
+LAST DEPLOYED: Mon Apr 30 01:30:45 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Secret
+NAME                 AGE
+reddit-test-mongodb  2s
+
+==> v1/PersistentVolumeClaim
+reddit-test-mongodb  2s
+
+==> v1/Service
+reddit-test-comment  2s
+reddit-test-mongodb  2s
+reddit-test-post     2s
+reddit-test-ui       2s
+
+==> v1beta2/Deployment
+reddit-test-comment  2s
+reddit-test-post     2s
+
+==> v1beta1/Deployment
+reddit-test-mongodb  2s
+reddit-test-ui       2s
+
+==> v1beta1/Ingress
+reddit-test-ui  2s
+
+```
+```bash
+helm upgrade production --namespace production ./reddit --install
+```
+> output
+```markdown
+Release "production" does not exist. Installing it now.
+NAME:   production
+LAST DEPLOYED: Mon Apr 30 01:32:19 2018
+NAMESPACE: production
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Secret
+NAME                AGE
+production-mongodb  2s
+
+==> v1/PersistentVolumeClaim
+production-mongodb  1s
+
+==> v1/Service
+production-comment  1s
+production-mongodb  1s
+production-post     1s
+production-ui       1s
+
+==> v1beta2/Deployment
+production-comment  1s
+production-post     1s
+
+==> v1beta1/Deployment
+production-mongodb  1s
+production-ui       1s
+
+==> v1beta1/Ingress
+production-ui  1s
+
+
+```
+
+```bash
+helm upgrade staging --namespace staging ./reddit --install
+```
+```markdown
+Release "staging" does not exist. Installing it now.
+NAME:   staging
+LAST DEPLOYED: Mon Apr 30 01:33:42 2018
+NAMESPACE: staging
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Secret
+NAME             AGE
+staging-mongodb  2s
+
+==> v1/PersistentVolumeClaim
+staging-mongodb  2s
+
+==> v1/Service
+staging-comment  2s
+staging-mongodb  2s
+staging-post     2s
+staging-ui       2s
+
+==> v1beta2/Deployment
+staging-comment  2s
+staging-post     2s
+
+==> v1beta1/Deployment
+staging-mongodb  2s
+staging-ui       2s
+
+==> v1beta1/Ingress
+staging-ui  2s
+```
+Раньше мы “хардкодили” адреса/dns-имена наших приложений для сбора метрик с них.
+prometheus.yml
+
+```yaml
+- job_name: 'ui'
+    static_configs:
+        - targets:
+            - 'ui:9292'
+- job_name: 'comment'
+    static_configs:
+        - targets:
+            - 'comment:9292'
+
+```
+
+Теперь мы можем использовать механизм ServiceDiscovery для обнаружения приложений, запущенных в k8s.
+
+
+##### Приложения будем искать так же, как и служебные сервисы k8s. Модернизируем конфиг prometheus
+
+```yamlex
+      - job_name: 'reddit-endpoints'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: reddit           # Используем действие keep, чтобы оставить только эндпоинты сервисов с метками “app=reddit”
+```
+##### Обновляем релиз prometheus
+
+```bash
+helm upgrade prom ./prometheus -f custom_values.yml --install
+```
+> output
+
+```markdown
+Release "prom" has been upgraded. Happy Helming!
+LAST DEPLOYED: Mon Apr 30 01:44:55 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1beta1/Ingress
+NAME                    AGE
+prom-prometheus-server  1h
+
+==> v1/ConfigMap
+prom-prometheus-server  1h
+
+==> v1/PersistentVolumeClaim
+prom-prometheus-server  1h
+
+==> v1/Service
+prom-prometheus-kube-state-metrics  27m
+prom-prometheus-node-exporter       18m
+prom-prometheus-server              1h
+
+==> v1beta1/DaemonSet
+prom-prometheus-node-exporter  18m
+
+==> v1beta1/Deployment
+prom-prometheus-kube-state-metrics  27m
+prom-prometheus-server              1h
+
+
+NOTES:
+The Prometheus server can be accessed via port 80 on the following DNS name from within your cluster:
+prom-prometheus-server.default.svc.cluster.local
+
+From outside the cluster, the server URL(s) are:
+http://reddit-prometheus
+
+For more information on running Prometheus, visit:
+https://prometheus.io/
+
+```
+
+Мы получили эндпоинты, но что это за поды мы не знаем.
+
+##### Добавим метки k8s. Все лейблы и аннотации k8s изначально отображаются в prometheus в формате:
+
+__meta_kubernetes_service_label_labelname
+__meta_kubernetes_service_annotation_annotationname
+
+##### Отобразить все совпадения групп из regex в label’ы Prometheus
+custom_values.yml
+
+```yamlex
+relabel_configs:
+  - action: labelmap
+    regex: __meta_kubernetes_service_label_(.+)
+```
+Обновите релиз prometheus
+
+```bash
+ helm upgrade prom ./prometheus -f custom_values.yml --install
+```
+> output
+
+```markdown
+Release "prom" has been upgraded. Happy Helming!
+LAST DEPLOYED: Mon Apr 30 01:49:42 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/ConfigMap
+NAME                    AGE
+prom-prometheus-server  1h
+
+==> v1/PersistentVolumeClaim
+prom-prometheus-server  1h
+
+==> v1/Service
+prom-prometheus-kube-state-metrics  32m
+prom-prometheus-node-exporter       23m
+prom-prometheus-server              1h
+
+==> v1beta1/DaemonSet
+prom-prometheus-node-exporter  23m
+
+==> v1beta1/Deployment
+prom-prometheus-kube-state-metrics  32m
+prom-prometheus-server              1h
+
+==> v1beta1/Ingress
+prom-prometheus-server  1h
+
+
+NOTES:
+The Prometheus server can be accessed via port 80 on the following DNS name from within your cluster:
+prom-prometheus-server.default.svc.cluster.local
+
+From outside the cluster, the server URL(s) are:
+http://reddit-prometheus
+
+
+
+
+
+For more information on running Prometheus, visit:
+https://prometheus.io/
+
+```
+Теперь мы видим лейблы k8s, присвоенные POD’ам
+
+##### Добавим еще label’ы для prometheus и обновим helm-релиз Т.к. метки вида __meta_* не публикуются, то нужно создать свои,перенеся в них информацию
+- source_labels: [__meta_kubernetes_namespace]
+target_label: kubernetes_namespace
+- source_labels: [__meta_kubernetes_service_name]
+target_label: kubernetes_name
+
+
+Обновим релиз prometheus
+
+```bash
+helm upgrade prom . -f custom_values.yml --install
+```
+Сейчас мы собираем метрики со всех сервисов reddit’а в 1 группеtarget-ов.
+Мы можем отделить target-ы компонент друг от друга (по окружениям, по самим компонентам), а также выключать и
+включать опцию мониторинга для них с помощью все тех же label-ов.
+
+##### Например, добавим в конфиг еще 1 job
+
+```yaml
+- job_name: 'reddit-production'
+   kubernetes_sd_configs:
+     - role: endpoints
+   relabel_configs:
+     - action: labelmap
+       regex: __meta_kubernetes_service_label_(.+)
+     - source_labels: [__meta_kubernetes_service_label_app, __meta_kubernetes_namespace] # Для разных лейблов
+       action: keep
+       regex: reddit;(production|staging)+                                               # разные    
+     - source_labels: [__meta_kubernetes_namespace]
+       target_label: kubernetes_namespace
+     - source_labels: [__meta_kubernetes_service_name]                                   # регекспы
+       target_label: kubernetes_name
+```
+##### Обновим релиз prometheus и посмотрим: Метрики будут отображаться для всех инстансов приложений
+
+```bash
+ helm upgrade prom . -f custom_values.yml --install
+```
+
+### Задание
+##### Разбейте конфигурацию job’а `reddit-endpoints` так, чтобы было 3 job’а для каждой из компонент
+##### приложений (post-endpoints, comment-endpoints, ui-endpoints), а reddit-endpoints уберите.
+
+```markdown
+Запустите приложение из helm чарта reddit
+helm upgrade reddit-test ./reddit --install
+helm upgrade production --namespace production ./reddit --install
+helm upgrade staging --namespace staging ./reddit --install
+
+```
+
+```yamlex
+      - job_name: 'post-endpoints'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: post
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: kubernetes_name
+
+      - job_name: 'comment-endpoints'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: comment
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: kubernetes_name
+
+      - job_name: 'ui-endpoints'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: ui
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: kubernetes_name
+
+```
+
+##### Поставим также grafana с помощью helm
+
+```bash
+helm upgrade --install grafana stable/grafana --set "adminPassword=admin" \
+--set "service.type=NodePort" \
+--set "ingress.enabled=true" \
+--set "ingress.hosts={reddit-grafana}"
+```
+
+curl -X PUT -H "Content-Type: application/json" -d '{
+  "oldPassword": "9diAffhoMEWFaRasHRVBIdGk7Zp5LCMUyI5NES0Y",
+  "newPassword": "admin",
+  "confirmNew": "admin"
+}' http://35.188.165.83:3000/api/user/password --user admin:9diAffhoMEWFaRasHRVBIdGk7Zp5LCMUyI5NES0Y
+
+> output
+
+```markdown
+Release "grafana" does not exist. Installing it now.
+NAME:   grafana
+LAST DEPLOYED: Tue May  1 18:59:03 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Secret
+NAME     AGE
+grafana  1s
+
+==> v1/ConfigMap
+grafana                  1s
+grafana-dashboards-json  1s
+
+==> v1/Service
+grafana  1s
+
+==> v1beta2/Deployment
+grafana  1s
+
+
+NOTES:
+1. Get your 'admin' user password by running:
+
+   kubectl get secret --namespace default grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+
+2. The Grafana server can be accessed via port 80 on the following DNS name from within your cluster:
+
+   grafana.default.svc.cluster.local
+
+   Get the Grafana URL to visit by running these commands in the same shell:
+
+     export POD_NAME=$(kubectl get pods --namespace default -l "app=grafana,component=" -o jsonpath="{.items[0].metadata.name}")
+     kubectl --namespace default port-forward $POD_NAME 3000
+     
+
+3. Login with the password from step 1 and the username: admin
+#################################################################################
+######   WARNING: Persistence is disabled!!! You will lose your data when   #####
+######            the Grafana pod is terminated.                            #####
+#################################################################################
+
+```
+
+can't access the grafana dashboard. error: get http://admin:admin@localhost:3000/api/org
+
+```bash
+kubectl get logs
+kubectl get svc
+```
+> output
+```markdown
+2m          6h           76        reddit-test-ui.152b6d4423206a14                             Ingress                                 Warning   GCE                         loadbalancer-controller                             googleapi: Error 403: Quota 'BACKEND_SERVICES' exceeded. Limit: 5.0 globally., quotaExceeded
+```
+
+```markdown
+NAME                                  TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                      AGE
+grafana                               NodePort       10.11.246.135   <none>          80:31613/TCP                 4m
+kubernetes                            ClusterIP      10.11.240.1     <none>          443/TCP                      23m
+nginx-nginx-ingress-controller        LoadBalancer   10.11.240.82    35.184.47.197   80:32435/TCP,443:30516/TCP   16m
+nginx-nginx-ingress-default-backend   ClusterIP      10.11.254.129   <none>          80/TCP                       16m
+prom-prometheus-kube-state-metrics    ClusterIP      None            <none>          80/TCP                       13m
+prom-prometheus-node-exporter         ClusterIP      None            <none>          9100/TCP                     13m
+prom-prometheus-server                LoadBalancer   10.11.247.45    35.232.182.45   80:31276/TCP                 13m
+```
+
+##### Удалим лишние бекенд сервисы
+
+```bash
+gcloud compute backend-services delete <backend-service name>
+```
+
+
+$ helm upgrade reddit-test ./reddit --install
+$ helm upgrade production --namespace production ./reddit --install
+$ helm upgrade staging --namespace staging ./reddit --install
+
+## Логирование
+
+##### Добавим  label самой мощной ноде в кластере
+
+```bash
+kubectl label node  gke-cluster-1-default-pool-672939b9-4hcd elastichost=true
+```
+### Стек
+
+```markdown
+Логирование в k8s будем выстраивать с помощью уже известного стека EFK:
+
+• ElasticSearch - база данных + поисковый движок
+• Fluentd - шипер (отправитель) и агрегатор логов
+• Kibana - веб-интерфейс для запросов в хранилище и отображения их результатов
+```
+## EFK
+
+#### Как логировать?
+
+##### Создаём файлы в новой папке efk/
+fluentd-ds.yaml
+
+```markdown
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: fluentd-es-v2.0.2
+  labels:
+    k8s-app: fluentd-es
+    version: v2.0.2
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluentd-es
+      version: v2.0.2
+  template:
+    metadata:
+      labels:
+        k8s-app: fluentd-es
+        kubernetes.io/cluster-service: "true"
+        version: v2.0.2
+      # This annotation ensures that fluentd does not get evicted if the node
+      # supports critical pod annotation based priority scheme.
+      # Note that this does not guarantee admission on the nodes (#40573).
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      containers:
+      - name: fluentd-es
+        image: gcr.io/google-containers/fluentd-elasticsearch:v2.0.2
+        env:
+        - name: FLUENTD_ARGS
+          value: --no-supervisor -q
+        resources:
+          limits:
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: libsystemddir
+          mountPath: /host/lib
+          readOnly: true
+        - name: config-volume
+          mountPath: /etc/fluent/config.d
+      nodeSelector:
+        beta.kubernetes.io/fluentd-ds-ready: "true"
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      # It is needed to copy systemd library to decompress journals
+      - name: libsystemddir
+        hostPath:
+          path: /usr/lib64
+      - name: config-volume
+        configMap:
+          name: fluentd-es-config-v0.1.1
+```
+fluentd-configmap.yaml (ссылка на gist)
+
+```markdown
+kind: ConfigMap
+apiVersion: v1
+data:
+  containers.input.conf: |-
+    # This configuration file for Fluentd / td-agent is used
+    # to watch changes to Docker log files. The kubelet creates symlinks that
+    # capture the pod name, namespace, container name & Docker container ID
+    # to the docker logs for pods in the /var/log/containers directory on the host.
+    # If running this fluentd configuration in a Docker container, the /var/log
+    # directory should be mounted in the container.
+    #
+    # These logs are then submitted to Elasticsearch which assumes the
+    # installation of the fluent-plugin-elasticsearch & the
+    # fluent-plugin-kubernetes_metadata_filter plugins.
+    # See https://github.com/uken/fluent-plugin-elasticsearch &
+    # https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter for
+    # more information about the plugins.
+    #
+    # Example
+    # =======
+    # A line in the Docker log file might look like this JSON:
+    #
+    # {"log":"2014/09/25 21:15:03 Got request with path wombat\n",
+    #  "stream":"stderr",
+    #   "time":"2014-09-25T21:15:03.499185026Z"}
+    #
+    # The time_format specification below makes sure we properly
+    # parse the time format produced by Docker. This will be
+    # submitted to Elasticsearch and should appear like:
+    # $ curl 'http://elasticsearch-logging:9200/_search?pretty'
+    # ...
+    # {
+    #      "_index" : "logstash-2014.09.25",
+    #      "_type" : "fluentd",
+    #      "_id" : "VBrbor2QTuGpsQyTCdfzqA",
+    #      "_score" : 1.0,
+    #      "_source":{"log":"2014/09/25 22:45:50 Got request with path wombat\n",
+    #                 "stream":"stderr","tag":"docker.container.all",
+    #                 "@timestamp":"2014-09-25T22:45:50+00:00"}
+    #    },
+    # ...
+    #
+    # The Kubernetes fluentd plugin is used to write the Kubernetes metadata to the log
+    # record & add labels to the log record if properly configured. This enables users
+    # to filter & search logs on any metadata.
+    # For example a Docker container's logs might be in the directory:
+    #
+    #  /var/lib/docker/containers/997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b
+    #
+    # and in the file:
+    #
+    #  997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b-json.log
+    #
+    # where 997599971ee6... is the Docker ID of the running container.
+    # The Kubernetes kubelet makes a symbolic link to this file on the host machine
+    # in the /var/log/containers directory which includes the pod name and the Kubernetes
+    # container name:
+    #
+    #    synthetic-logger-0.25lps-pod_default_synth-lgr-997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b.log
+    #    ->
+    #    /var/lib/docker/containers/997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b/997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b-json.log
+    #
+    # The /var/log directory on the host is mapped to the /var/log directory in the container
+    # running this instance of Fluentd and we end up collecting the file:
+    #
+    #   /var/log/containers/synthetic-logger-0.25lps-pod_default_synth-lgr-997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b.log
+    #
+    # This results in the tag:
+    #
+    #  var.log.containers.synthetic-logger-0.25lps-pod_default_synth-lgr-997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b.log
+    #
+    # The Kubernetes fluentd plugin is used to extract the namespace, pod name & container name
+    # which are added to the log message as a kubernetes field object & the Docker container ID
+    # is also added under the docker field object.
+    # The final tag is:
+    #
+    #   kubernetes.var.log.containers.synthetic-logger-0.25lps-pod_default_synth-lgr-997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b.log
+    #
+    # And the final log record look like:
+    #
+    # {
+    #   "log":"2014/09/25 21:15:03 Got request with path wombat\n",
+    #   "stream":"stderr",
+    #   "time":"2014-09-25T21:15:03.499185026Z",
+    #   "kubernetes": {
+    #     "namespace": "default",
+    #     "pod_name": "synthetic-logger-0.25lps-pod",
+    #     "container_name": "synth-lgr"
+    #   },
+    #   "docker": {
+    #     "container_id": "997599971ee6366d4a5920d25b79286ad45ff37a74494f262e3bc98d909d0a7b"
+    #   }
+    # }
+    #
+    # This makes it easier for users to search for logs by pod name or by
+    # the name of the Kubernetes container regardless of how many times the
+    # Kubernetes pod has been restarted (resulting in a several Docker container IDs).
+
+    # Json Log Example:
+    # {"log":"[info:2016-02-16T16:04:05.930-08:00] Some log text here\n","stream":"stdout","time":"2016-02-17T00:04:05.931087621Z"}
+    # CRI Log Example:
+    # 2016-02-17T00:04:05.931087621Z stdout F [info:2016-02-16T16:04:05.930-08:00] Some log text here
+    <source>
+      type tail
+      path /var/log/containers/*.log
+      pos_file /var/log/es-containers.log.pos
+      time_format %Y-%m-%dT%H:%M:%S.%NZ
+      tag kubernetes.*
+      read_from_head true
+      format multi_format
+      <pattern>
+        format json
+        time_key time
+        time_format %Y-%m-%dT%H:%M:%S.%NZ
+      </pattern>
+      <pattern>
+        format /^(?<time>.+) (?<stream>stdout|stderr) [^ ]* (?<log>.*)$/
+        time_format %Y-%m-%dT%H:%M:%S.%N%:z
+      </pattern>
+    </source>
+  system.input.conf: |-
+    # Example:
+    # 2015-12-21 23:17:22,066 [salt.state       ][INFO    ] Completed state [net.ipv4.ip_forward] at time 23:17:22.066081
+    <source>
+      type tail
+      format /^(?<time>[^ ]* [^ ,]*)[^\[]*\[[^\]]*\]\[(?<severity>[^ \]]*) *\] (?<message>.*)$/
+      time_format %Y-%m-%d %H:%M:%S
+      path /var/log/salt/minion
+      pos_file /var/log/es-salt.pos
+      tag salt
+    </source>
+
+    # Example:
+    # Dec 21 23:17:22 gke-foo-1-1-4b5cbd14-node-4eoj startupscript: Finished running startup script /var/run/google.startup.script
+    <source>
+      type tail
+      format syslog
+      path /var/log/startupscript.log
+      pos_file /var/log/es-startupscript.log.pos
+      tag startupscript
+    </source>
+
+    # Examples:
+    # time="2016-02-04T06:51:03.053580605Z" level=info msg="GET /containers/json"
+    # time="2016-02-04T07:53:57.505612354Z" level=error msg="HTTP Error" err="No such image: -f" statusCode=404
+    <source>
+      type tail
+      format /^time="(?<time>[^)]*)" level=(?<severity>[^ ]*) msg="(?<message>[^"]*)"( err="(?<error>[^"]*)")?( statusCode=($<status_code>\d+))?/
+      path /var/log/docker.log
+      pos_file /var/log/es-docker.log.pos
+      tag docker
+    </source>
+
+    # Example:
+    # 2016/02/04 06:52:38 filePurge: successfully removed file /var/etcd/data/member/wal/00000000000006d0-00000000010a23d1.wal
+    <source>
+      type tail
+      # Not parsing this, because it doesn't have anything particularly useful to
+      # parse out of it (like severities).
+      format none
+      path /var/log/etcd.log
+      pos_file /var/log/es-etcd.log.pos
+      tag etcd
+    </source>
+
+    # Multi-line parsing is required for all the kube logs because very large log
+    # statements, such as those that include entire object bodies, get split into
+    # multiple lines by glog.
+
+    # Example:
+    # I0204 07:32:30.020537    3368 server.go:1048] POST /stats/container/: (13.972191ms) 200 [[Go-http-client/1.1] 10.244.1.3:40537]
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/kubelet.log
+      pos_file /var/log/es-kubelet.log.pos
+      tag kubelet
+    </source>
+
+    # Example:
+    # I1118 21:26:53.975789       6 proxier.go:1096] Port "nodePort for kube-system/default-http-backend:http" (:31429/tcp) was open before and is still needed
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/kube-proxy.log
+      pos_file /var/log/es-kube-proxy.log.pos
+      tag kube-proxy
+    </source>
+
+    # Example:
+    # I0204 07:00:19.604280       5 handlers.go:131] GET /api/v1/nodes: (1.624207ms) 200 [[kube-controller-manager/v1.1.3 (linux/amd64) kubernetes/6a81b50] 127.0.0.1:38266]
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/kube-apiserver.log
+      pos_file /var/log/es-kube-apiserver.log.pos
+      tag kube-apiserver
+    </source>
+
+    # Example:
+    # I0204 06:55:31.872680       5 servicecontroller.go:277] LB already exists and doesn't need update for service kube-system/kube-ui
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/kube-controller-manager.log
+      pos_file /var/log/es-kube-controller-manager.log.pos
+      tag kube-controller-manager
+    </source>
+
+    # Example:
+    # W0204 06:49:18.239674       7 reflector.go:245] pkg/scheduler/factory/factory.go:193: watch of *api.Service ended with: 401: The event in requested index is outdated and cleared (the requested history has been cleared [2578313/2577886]) [2579312]
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/kube-scheduler.log
+      pos_file /var/log/es-kube-scheduler.log.pos
+      tag kube-scheduler
+    </source>
+
+    # Example:
+    # I1104 10:36:20.242766       5 rescheduler.go:73] Running Rescheduler
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/rescheduler.log
+      pos_file /var/log/es-rescheduler.log.pos
+      tag rescheduler
+    </source>
+
+    # Example:
+    # I0603 15:31:05.793605       6 cluster_manager.go:230] Reading config from path /etc/gce.conf
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/glbc.log
+      pos_file /var/log/es-glbc.log.pos
+      tag glbc
+    </source>
+
+    # Example:
+    # I0603 15:31:05.793605       6 cluster_manager.go:230] Reading config from path /etc/gce.conf
+    <source>
+      type tail
+      format multiline
+      multiline_flush_interval 5s
+      format_firstline /^\w\d{4}/
+      format1 /^(?<severity>\w)(?<time>\d{4} [^\s]*)\s+(?<pid>\d+)\s+(?<source>[^ \]]+)\] (?<message>.*)/
+      time_format %m%d %H:%M:%S.%N
+      path /var/log/cluster-autoscaler.log
+      pos_file /var/log/es-cluster-autoscaler.log.pos
+      tag cluster-autoscaler
+    </source>
+
+    # Logs from systemd-journal for interesting services.
+    <source>
+      type systemd
+      filters [{ "_SYSTEMD_UNIT": "docker.service" }]
+      pos_file /var/log/gcp-journald-docker.pos
+      read_from_head true
+      tag docker
+    </source>
+
+    <source>
+      type systemd
+      filters [{ "_SYSTEMD_UNIT": "kubelet.service" }]
+      pos_file /var/log/gcp-journald-kubelet.pos
+      read_from_head true
+      tag kubelet
+    </source>
+
+    <source>
+      type systemd
+      filters [{ "_SYSTEMD_UNIT": "node-problem-detector.service" }]
+      pos_file /var/log/gcp-journald-node-problem-detector.pos
+      read_from_head true
+      tag node-problem-detector
+    </source>
+  forward.input.conf: |-
+    # Takes the messages sent over TCP
+    <source>
+      type forward
+    </source>
+  monitoring.conf: |-
+    # Prometheus Exporter Plugin
+    # input plugin that exports metrics
+    <source>
+      @type prometheus
+    </source>
+
+    <source>
+      @type monitor_agent
+    </source>
+
+    # input plugin that collects metrics from MonitorAgent
+    <source>
+      @type prometheus_monitor
+      <labels>
+        host ${hostname}
+      </labels>
+    </source>
+
+    # input plugin that collects metrics for output plugin
+    <source>
+      @type prometheus_output_monitor
+      <labels>
+        host ${hostname}
+      </labels>
+    </source>
+
+    # input plugin that collects metrics for in_tail plugin
+    <source>
+      @type prometheus_tail_monitor
+      <labels>
+        host ${hostname}
+      </labels>
+    </source>
+  output.conf: |-
+    # Enriches records with Kubernetes metadata
+    <filter kubernetes.**>
+      type kubernetes_metadata
+    </filter>
+
+    <match **>
+       type elasticsearch
+       log_level info
+       include_tag_key true
+       host elasticsearch-logging
+       port 9200
+       logstash_format true
+       logstash_prefix fluentd
+       # Set the chunk limits.
+       buffer_chunk_limit 2M
+       buffer_queue_limit 8
+       flush_interval 5s
+       # Never wait longer than 5 minutes between retries.
+       max_retry_wait 30
+       # Disable the limit on the number of retries (retry forever).
+       disable_retry_limit
+       # Use multiple threads for processing.
+       num_threads 2
+    </match>
+metadata:
+  name: fluentd-es-config-v0.1.1
+  labels:
+    addonmanager.kubernetes.io/mode: Reconcile
+```
+
+es-service.yaml
+
+```markdown
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-logging
+  labels:
+    k8s-app: elasticsearch-logging
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+    kubernetes.io/name: "Elasticsearch"
+spec:
+  ports:
+  - port: 9200
+    protocol: TCP
+    targetPort: db
+  selector:
+    k8s-app: elasticsearch-logging
+```
+
+es-statefulSet.yaml
+
+```markdown
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: elasticsearch-logging
+  labels:
+    k8s-app: elasticsearch-logging
+    version: v5.6.4
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+spec:
+  serviceName: elasticsearch-logging
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: elasticsearch-logging
+      version: v5.6.4
+  template:
+    metadata:
+      labels:
+        k8s-app: elasticsearch-logging
+        version: v5.6.4
+        kubernetes.io/cluster-service: "true"
+    spec:
+      nodeSelector:
+        elastichost: "true"
+      containers:
+      - image: k8s.gcr.io/elasticsearch:v5.6.4
+        name: elasticsearch-logging
+        resources:
+          # need more cpu upon initialization, therefore burstable class
+          limits:
+            cpu: 1000m
+          requests:
+            cpu: 100m
+        ports:
+        - containerPort: 9200
+          name: db
+          protocol: TCP
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        volumeMounts:
+        - name: es-pvc-volume
+          mountPath: /data
+        env:
+        - name: MINIMUM_MASTER_NODES
+          value: "1"
+        - name: "NAMESPACE"
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+      volumes:
+      - name: es-pvc-volume
+        persistentVolumeClaim:
+          claimName: elasticsearch-logging-claim
+      # Elasticsearch requires vm.max_map_count to be at least 262144.
+      # If your OS already sets up this number to a higher value, feel free
+      # to remove this init container.
+      initContainers:
+      - image: alpine:3.6
+        command: ["/sbin/sysctl", "-w", "vm.max_map_count=262144"]
+        name: elasticsearch-logging-init
+        securityContext:
+          privileged: true
+```
+
+es-pvc.yaml
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: elasticsearch-logging-claim
+spec:
+  storageClassName: standard
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
+##### Запустим стек в вашем k8s
+
+```bash
+kubectl apply -f ./efk
+```
+
+
+##### Kibana поставим из helm чарта (ссылка на gist)
+
+```bash
+helm upgrade --install kibana stable/kibana \
+--set "ingress.enabled=true" \
+--set "ingress.hosts={reddit-kibana}" \
+--set "env.ELASTICSEARCH_URL=http://elasticsearch-logging:9200" \
+--version 0.1.1
+```
+##### Добавим в строчку с адресом нашего ingress-контроллера в /etc/hosts запись о reddit-kibana
+http://reddit-kibana/
+
+##### Откроем вкладку Discover в Kibana и введите в строку поиска выражение
+
+kubernetes.labels.component:post OR kubernetes.labels.component:comment OR kubernetes.labels.component:ui
+
+```markdown
+1) Особенность работы fluentd в k8s состоит в том, что его задача
+помимо сбора самих логов приложений, сервисов и хостов, также
+распознать дополнительные метаданные (как правило это
+дополнительные поля с лейблами)
+2) Откуда и какие логи собирает fluentd - видно в его fluentd-
+configmap.yaml и в fluentd-ds.yaml
+```
+
+
+# Homework-31. CI/CD в Kubernetes
+
+## Helm
+
+```markdown
+Helm - пакетный менеджер для Kubernetes.
+
+С его помощью мы будем:
+
+1) Стандартизировать поставку приложения в Kubernetes
+2) Декларировать инфраструктуру
+3) Деплоить новые версии приложения
+
+Helm - клиент-серверное приложение.
+```
+### Helm - установка
+
+##### Установим его клиентскую часть - консольный клиент Helm:
+
+https://github.com/kubernetes/helm/releases
+
+ - распаковываем и размещаем исполняемый файл helm в директории исполнения (/usr/local/bin/ , /usr/bin, ...)
+ 
+ 
+```markdown
+Helm читает конфигурацию kubectl ( ~/.kube/config ) и сам
+определяет текущий контекст (кластер, пользователь,
+неймспейс)
+Если хотите сменить кластер, то либо меняйте контекст с
+помощью
+$ kubectl config set-context
+либо подгружайте helm’у собственный config-файл
+флагом --kube-context .
+```
+
+#### Установим серверную часть Helm’а - Tiller.
+```markdown
+Tiller - это аддон Kubernetes, т.е. Pod, который общается с API Kubernetes.
+Для этого понадобится ему выдать ServiceAccount и назначить роли RBAC, необходимые для работы.
+```
+
+##### Создайте файл tiller.yml и поместите в него манифест
+
+```yamlex
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tiller
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: tiller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: tiller
+    namespace: kube-system
+```
+
+```bash
+kubectl apply -f tiller.yml
+```
+
+##### Теперь запустим tiller-сервер
+
+```bash
+helm init --service-account tiller
+```
+> output
+
+```markdown
+Creating /home/asomir/.helm 
+Creating /home/asomir/.helm/repository 
+Creating /home/asomir/.helm/repository/cache 
+Creating /home/asomir/.helm/repository/local 
+Creating /home/asomir/.helm/plugins 
+Creating /home/asomir/.helm/starters 
+Creating /home/asomir/.helm/cache/archive 
+Creating /home/asomir/.helm/repository/repositories.yaml 
+Adding stable repo with URL: https://kubernetes-charts.storage.googleapis.com 
+Adding local repo with URL: http://127.0.0.1:8879/charts 
+$HELM_HOME has been configured at /home/asomir/.helm.
+
+Tiller (the Helm server-side component) has been installed into your Kubernetes Cluster.
+
+Please note: by default, Tiller is deployed with an insecure 'allow unauthenticated users' policy.
+For more information on securing your installation see: https://docs.helm.sh/using_helm/#securing-your-helm-installation
+Happy Helming!
+```
+
+##### Проверим
+
+```bash
+kubectl get pods -n kube-system --selector app=helm
+```
+
+```markdown
+NAME                             READY     STATUS    RESTARTS   AGE
+tiller-deploy-56f4644cbb-dhj9b   1/1       Running   0          1m
+```
+
+### Charts
+
+```markdown
+Chart - это пакет в Helm.
+
+Создаём директорию Charts в папке kubernetes со следующей структурой директорий:
+```
+```bash
+mkdir comment post reddit ui
+```
+
+##### Начнем разработку Chart’а для компоненты ui приложения
+
+ui/Chart.yaml helm предпочитает .yaml
+
+```yaml
+name: ui                                    # Реально значимыми являются поля name и version. 
+version: 1.0.0                              # От них зависит работа Helm’а с Chart’ом. Остальное - описания.
+description: OTUS reddit application UI
+maintainers:
+  - name: Alexander Akilin
+    email: asomirl@gmail.com
+appVersion: 1.0
+```
+
+#### Templates
+
+```markdown
+Основным содержимым Chart’ов являются шаблоны манифестов Kubernetes.
+
+1) Создаём директорию ui/templates
+2) Переносим в неё все манифесты, разработанные ранее для сервиса ui (ui-service, ui-deployment, ui-ingress)
+3) Переименуем их (уберите префикс “ui-“) и поменяем расширение на .yaml) - стилистические правки
+```
+```bash
+mv  ui* Charts/ui/templates/
+rename 's/yml/yaml/' *.yml
+rename 's/ui-//' ui-*
+cd ..
+cd ..
+tree
+```
+> output 
+
+```markdown
+└── ui
+    ├── Chart.yaml
+    └── templates
+        ├── deployment.yaml
+        ├── ingress.yaml
+        └── service.yaml
+
+```
+По-сути, это уже готовый пакет для установки в Kubernetes
+
+##### 1) Убедимся, что у нас не развернуты компоненты приложения в kubernetes. Если развернуты - удаляем
+
+```bash
+kubectl delete deploy ui -n dev
+kubectl delete service ui  -n dev
+kubectl delete ingress ui
+```
+##### 2) Установим Chart
+
+```bash
+helm install --name test-ui-1 ui/
+```
+> output
+
+```markdown
+NAME:   test-ui-1
+LAST DEPLOYED: Sun Apr 15 16:12:41 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1beta1/Deployment
+NAME  AGE
+ui    1s
+
+==> v1beta1/Ingress
+ui  1s
+
+==> v1/Service
+ui  1s
+```
+
+##### 3) Посмотрим, что получилось
+
+```bash
+helm ls
+```
+
+```markdown
+NAME            REVISION        UPDATED                         STATUS          CHART           NAMESPACE
+test-ui-1       1               Sun Apr 15 16:12:41 2018        DEPLOYED        ui-1.0.0        default  
+```
+
+##### Теперь сделаем так, чтобы можно было использовать 1 Chart для запуска нескольких экземпляров (релизов). Шаблонизируем его.
+
+ui/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}   # Нам нужно уникальное имя запущенного ресурса
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}                # Помечаем, что сервис из конкретного релиза
+spec:
+  type: NodePort
+  ports:
+  - port: 9292
+    protocol: TCP
+    targetPort: 9292
+  selector:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}                # Выбираем поды только из этого релиза
+```
+
+```markdown
+name: {{ .Release.Name }}-{{ .Chart.Name }}
+
+Здесь мы используем встроенные переменные
+
+.Release - группа переменных с информацией о релизе (конкретном запуске Chart’а в k8s)
+
+.Chart - группа переменных с информацией о Chart’е (содержимое файла Chart.yaml)
+
+Также еще есть группы переменных:
+
+.Template - информация о текущем шаблоне ( .Name и .BasePath)
+
+.Capabilities - информация о Kubernetes (версия, версии API)
+ 
+.Files.Get - получить содержимое файла
+```
+
+##### Шаблонизируем подобным образом остальные сущности
+
+ui/templates/deployment.yaml
+
+```markdown
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:                                     # важно, чтобы selector deployment’а нашел только нужные POD’ы.
+    matchLabels:
+      app: reddit
+      component: ui
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: ui-pod
+      labels:
+        app: reddit
+        component: ui
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: asomir/ui
+        name: ui
+        ports:
+        - containerPort: 9292
+          name: ui
+          protocol: TCP
+        env:
+        - name: ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+```
+
+ui/templates/ingress.yaml
+
+```markdown
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: {{ .Release.Name }}-{{ .Chart.Name }}
+          servicePort: 9292
+```
+
+##### Установим несколько релизов ui
+
+```bash
+helm install ui --name ui-1
+helm install ui --name ui-2 
+helm install ui --name ui-3
+```
+ui-1 ui-2 ui-3 - Имя релиза
+
+> output 
+
+```markdown
+NAME:   ui-3
+LAST DEPLOYED: Sun Apr 15 16:25:47 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Service
+NAME     AGE
+ui-3-ui  0s
+
+==> v1beta1/Deployment
+ui-3-ui  0s
+
+==> v1beta1/Ingress
+ui-3-ui  0s
+```
+##### Проверяем ингрессы
+
+```bash
+kubectl get ingress
+```
+>output
+
+```markdown
+NAME      HOSTS     ADDRESS          PORTS     AGE
+ui-1-ui   *         35.186.251.110   80        2m
+ui-2-ui   *         35.190.51.208    80        2m
+ui-3-ui   *         35.190.44.156    80        2m
+```
+> По IP-адресам можно попасть на разные релизы ui- приложений (необходимо подождать несколько минут).
+
+Мы уже сделали возможность запуска нескольких версий
+приложений из одного пакета манифестов, используя лишь
+встроенные переменные.
+
+##### Кастомизируем установку своими переменными (образ и порт). 
+
+ui/templates/deployment.yaml
+
+```yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: reddit
+      component: ui
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: ui
+      labels:
+        app: reddit
+        component: ui
+        release: {{ .Release.Name }}                                        
+    spec:
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"  # Ссылка на наш репозиторий и сам имедж 
+        name: ui
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}              # Параметризируем порт
+          name: ui
+          protocol: TCP
+        env:
+        - name: ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+```
+ui/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+spec:
+  type: NodePort
+  ports:
+  - port: {{ .Values.service.externalPort }}        # Параметризируем порт внешний
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}  # И внутренний
+  selector:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+```
+
+ui/templates/ingress.yaml
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        backend:
+          serviceName: {{ .Release.Name }}-{{ .Chart.Name }}
+          servicePort: {{ .Values.service.externalPort }}
+```
+
+##### Собственно, определяем значения переменных: 
+
+```yaml
+service:
+  internalPort: 9292
+  externalPort: 9292
+
+image:
+  repository: asomir/ui
+  tag: latest
+```
+
+##### Запускаем наши образы: 
+
+```bash
+helm upgrade ui-1 ui/
+helm install ui-2 ui/
+helm install ui-3 ui/
+```
+##### Мы собрали Chart для развертывания ui-компоненты приложения. Он должен иметь следующую структуру:
+
+```markdown
+└── ui
+    ├── Chart.yaml
+    └── templates
+        ├── deployment.yaml
+        ├── ingress.yaml
+        └── service.yaml
+```
+
+##### Осталось собрать пакеты для остальных компонент
+
+post/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: post
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.service.externalPort }}
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}
+  selector:
+    app: reddit
+    component: post
+    release: {{ .Release.Name }}
+```
+
+post/templates/deployment.yaml
+
+```yaml
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: post
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reddit
+      component: post
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: post
+      labels:
+        app: reddit
+        component: post
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        name: post
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: post
+          protocol: TCP
+        env:
+        - name: POST_DATABASE_HOST
+          value: postdb
+```
+
+```markdown
+Поскольку адрес БД может меняться в зависимости от условий запуска:
+• бд отдельно от кластера
+• бд запущено в отдельном релизе
+• ...
+, то создадим удобный шаблон для задания адреса БД.
+env:
+- name: POST_DATABASE_HOST
+value: {{ .Values.databaseHost }}
+
+Будем задавать бд через переменную databaseHost. Иногда лучше использовать подобный формат переменных
+вместо структур database.host, так как тогда прийдется определять структуру database, иначе helm выдаст ошибку.
+Используем функцию default. Если databaseHost не будет определена или ее значение будет пустым, то используется
+вывод функции printf (которая просто формирует строку <имя- релиза>-mongodb)
+
+value: {{ .Values.databaseHost | default (printf "%s-mongodb" .Release.Name) }}
+                                                       |
+                                                       release-name-mongodb
+В итоге должно получиться
+                                                       
+env:
+- name: POST_DATABASE_HOST
+  value: {{ .Values.databaseHost | default (printf "%s-mongodb" .Release.Name) }}
+             
+
+Теперь, если databaseHost не задано, то будет использован адрес базы, поднятой внутри релиза
+```
+post/values.yaml
+
+```yaml
+service:
+  internalPort: 5000
+  externalPort: 5000
+
+image:
+  repository: asomir/post
+  tag: latest
+
+databaseHost:
+```
+##### Шаблонизируем сервис comment:
+
+comment/templates/deployment.yaml
+
+```yaml
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reddit
+      component: comment
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: comment
+      labels:
+        app: reddit
+        component: comment
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        name: comment
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: comment
+          protocol: TCP
+        env:
+        - name: COMMENT_DATABASE_HOST
+          value: {{ .Values.databaseHost | default (printf "%s-mongodb" .Release.Name) }}
+```
+comment/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.service.externalPort }}
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}
+  selector:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+```
+
+comment/values.yaml
+
+```yaml
+service:
+  internalPort: 9292
+  externalPort: 9292
+
+image:
+  repository: asomir/comment
+  tag: latest
+
+databaseHost:
+```
+
+##### Итоговая структура выглядит вот так: 
+
+```markdown
+├── comment
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── values.yaml
+├── post
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── values.yaml
+├── reddit
+└── ui
+    ├── Chart.yaml
+    ├── templates
+    │   ├── deployment.yaml
+    │   ├── ingress.yaml
+    │   └── service.yaml
+    └── values.yaml
+
+```
+
+```markdown
+Также стоит отметить функционал helm по использованию helper’ов и функции templates.
+Helper - это написанная нами функция. В функция описывается, как правило, сложная логика.
+
+Шаблоны этих функций распологаются в файле _helpers.tpl
+```
+##### Пример функции comment.fullname :
+
+charts/comment/templates/_helpers.tpl
+
+```markdown
+{{- define "comment.fullname" -}}
+{{- printf "%s-%s" .Release.Name .Chart.Name }}
+{{- end -}}
+```
+которая в результате выдаст то же, что и:
+{{ .Release.Name }}-{{ .Chart.Name }}
+
+
+##### И заменим в соответствующие строчки в файле, чтобы использовать helper
+
+charts/comment/templates/service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "comment.fullname" . }}  # было name: {{ .Release.Name }}-{{ .Chart.Name }}
+  labels:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.service.externalPort }}
+    protocol: TCP
+    targetPort: {{ .Values.service.internalPort }}
+  selector:
+    app: reddit
+    component: comment
+    release: {{ .Release.Name }}
+```
+
+```markdown
+с помощью template вызывается функция comment.fullname, описанная ранее в файле _helpers.tpl
+```
+
+##### Структура ипортирующей функции template
+
+```markdown
+                {{ template "comment.fullname" . }}
+                    |               |          |
+                    
+         Функция template         Название    область видимости
+                                функции для     для импорта
+                                  импорта  
+                             
+“.”- вся область видимости всех переменных (можно передать .Chart , тогда .Values не будут доступны внутри функции)                             
+```
+
+## Задание
+
+1) Создать файл _helpers.tpl в папках templates сервисов ui, post и comment
+
+
+2) вставить функцию “<service>.fullname” в каждый _helpers.tpl файл. <service> заменить на имя чарта соотв. сервиса
+{{- define "post.fullname" -}}
+{{- define "comment.fullname" -}}
+{{- define "ui.fullname" -}}
+
+
+3) В каждом из шаблонов манифестов вставить следующую функцию там, где это требуется (большинство полей это name: )
+name: {{ template "comment.fullname" . }}
+name: {{ template "ui.fullname" . }}
+name: {{ template "post.fullname" . }}
+
+### Управление зависимостями
+
+##### Структура приобрела следующий вид: 
+
+```markdown
+├── comment
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   ├── _helpers.tpl
+│   │   └── service.yaml
+│   └── values.yaml
+├── post
+│   ├── Chart.yaml
+│   ├── templates
+│   │   ├── deployment.yaml
+│   │   ├── _helpers.tpl
+│   │   └── service.yaml
+│   └── values.yaml
+├── reddit
+└── ui
+    ├── Chart.yaml
+    ├── templates
+    │   ├── deployment.yaml
+    │   ├── _helpers.tpl
+    │   ├── ingress.yaml
+    │   └── service.yaml
+    └── values.yaml
+```
+
+Мы создали Chart’ы для каждой компоненты нашего приложения. Каждый из них можно запустить по-отдельности командой
+
+```bash
+helm install <chart-path> <release-name>
+```
+Но они будут запускаться в разных релизах, и не будут видеть друг друга.
+С помощью механизма управления зависимостями создадим единый Chart reddit, который объединит наши компоненты
+
+### Структура приложения reddit
+
+```markdown
+                        reddit
+                   /    |     |    \
+                  UI Mongo  Post  Comment
+```
+##### 1) Создаём 
+reddit/Chart.yaml
+
+```yaml
+name: reddit
+version: 0.1.0
+description: OTUS sample reddit application UI
+maintainers:
+  - name: Alexander Akilin
+    email: asomirl@gmail.com
+```
+
+##### 2) Создаём пустой
+reddit/values.yaml
+
+##### 3) В директории Chart’а reddit создадим файл
+
+```buildoutcfg
+dependencies:
+  - name: ui                        # Имя и версия должны совпадать с содеражанием ui/Chart.yml
+    version: "1.0.0"
+    repository: "file://../ui"      # Путь относительно расположения самого requiremetns.yml
+  - name: post
+    version: 1.0.0
+    repository: file://../post
+  - name: comment
+    version: 1.0.0
+    repository: file://../comment
+```
+##### Нужно загрузить зависимости (когда Chart’ не упакован в tgz архив)
+
+```bash
+helm dep update
+```
+> output
+
+```markdown
+Hang tight while we grab the latest from your chart repositories...
+...Unable to get an update from the "local" chart repository (http://127.0.0.1:8879/charts):
+        Get http://127.0.0.1:8879/charts/index.yaml: dial tcp 127.0.0.1:8879: connect: connection refused
+...Successfully got an update from the "stable" chart repository
+Update Complete. ⎈Happy Helming!⎈
+Saving 3 charts
+Deleting outdated charts
+```
+```markdown
+МАГИЯ: 
+1) Появился файл requirements.lock с фиксацией зависимостей
+2) Была создана директория charts с зависимостями в виде архивов
+```
+##### Структура стала следующей:
+
+```markdown
+.
+├── charts
+│   ├── comment-1.0.0.tgz
+│   ├── post-1.0.0.tgz
+│   └── ui-1.0.0.tgz
+├── Chart.yaml
+├── requirements.lock
+├── requirements.yaml
+└── values.yaml
+
+```
+#### Chart для базы данных не будем создавать вручную. Возьмем готовый.
+
+##### 1) Найдем Chart в общедоступном репозитории
+
+```bash
+helm search mongo
+```
+> output
+
+```markdown
+NAME                            CHART VERSION   APP VERSION     DESCRIPTION                                       
+stable/mongodb                  2.0.2           3.7.3           NoSQL document-oriented database that stores JS...
+stable/mongodb-replicaset       3.3.0           3.6             NoSQL document-oriented database that stores JS...
+```
+
+##### 2) добавим в reddit/requirements.yml
+
+```buildoutcfg
+dependencies:
+  - name: ui
+    version: "1.0.0"
+    repository: "file://../ui"
+  - name: post
+    version: 1.0.0
+    repository: file://../post
+  - name: comment
+    version: 1.0.0
+    repository: file://../comment
+  - name: mongodb
+    version: 0.4.18
+    repository: https://kubernetes-charts.storage.googleapis.com
+```
+##### 3) Установим наше приложение:
+
+```bash
+helm dep update
+```
+
+```bash
+helm install reddit --name reddit-test
+```
+```bash
+helm ls --all
+```
+> output
+
+```markdown
+NAME            REVISION        UPDATED                         STATUS          CHART           NAMESPACE
+reddit-test     1               Mon Apr 23 14:55:11 2018        DEPLOYED        reddit-0.1.0    default  
+test-ui-1       1               Sat Apr 21 22:57:01 2018        DEPLOYED        ui-1.0.0        default  
+ui-1            1               Sat Apr 21 22:57:50 2018        DEPLOYED        ui-1.0.0        default  
+ui-2            1               Sat Apr 21 22:58:02 2018        DEPLOYED        ui-1.0.0        default  
+ui-3            1               Sat Apr 21 22:58:13 2018        DEPLOYED        ui-1.0.0        default  
+```
+
+```bash
+kubectl get ingress
+```
+
+
+Есть проблема с тем, что UI-сервис не знает как правильно ходить в post и comment сервисы.
+Ведь их имена теперь динамические и зависят от имен чартов В Dockerfile UI-сервиса уже заданы переменные окружения.
+Надо, чтобы они указывали на нужные бекенды
+
+ENV POST_SERVICE_HOST post
+ENV POST_SERVICE_PORT 5000
+ENV COMMENT_SERVICE_HOST comment
+ENV COMMENT_SERVICE_PORT 9292
+
+##### Добавим в ui/deployments.yaml
+
+```yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "ui.fullname" . }}
+  labels:
+    app: reddit
+    component: ui
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reddit
+      component: ui
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: ui-pod
+      labels:
+        app: reddit
+        component: ui
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        name: ui
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: ui
+          protocol: TCP
+        env:
+        - name: POST_SERVICE_HOST
+          value: {{  .Values.postHost | default (printf "%s-post" .Release.Name) }}
+        - name: POST_SERVICE_PORT
+          value: {{  .Values.postPort | default "5000" | quote }}
+        - name: COMMENT_SERVICE_HOST
+          value: {{  .Values.commentHost | default (printf "%s-comment" .Release.Name) }}
+        - name: COMMENT_SERVICE_PORT
+          value: {{  .Values.commentPort | default "9292" | quote }} # quote - функция для добавления кавычек Для чисел и булевых значений это важно
+        - name: ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+```
+
+##### Добавим в ui/values.yaml
+
+```yaml
+postHost:
+postPort:
+commentHost:
+commentPort:
+```
+##### Можно задавать теперь переменные для зависимостей прямо в values.yaml самого Chart’а reddit.
+Они перезаписывают значения переменных из зависимых чартов
+
+reddit/values.yaml
+
+```yaml
+comment:                          # ссылаемся на переменные чартов из зависимостей
+  image:
+    repository: asomir/comment
+    tag: latest
+  service:
+    externalPort: 9292
+
+post:                             # ссылаемся на переменные чартов из зависимостей
+  image:
+    repository: asomir/post
+    tag: latest
+    service:
+      externalPort: 5000
+
+ui:                               # ссылаемся на переменные чартов из зависимостей
+  image:
+    repository: asomir/ui
+    tag: latest
+    service:
+      externalPort: 9292
+```
+
+##### После обновления UI - нужно обновить зависимости чарта reddit.
+
+```bash
+helm dep update ./reddit
+```
+> output
+
+```markdown
+Hang tight while we grab the latest from your chart repositories...
+...Unable to get an update from the "local" chart repository (http://127.0.0.1:8879/charts):
+        Get http://127.0.0.1:8879/charts/index.yaml: dial tcp 127.0.0.1:8879: connect: connection refused
+...Successfully got an update from the "stable" chart repository
+Update Complete. ⎈Happy Helming!⎈
+Saving 4 charts
+Downloading mongodb from repo https://kubernetes-charts.storage.googleapis.com
+Deleting outdated charts
+```
+##### Обновляем релиз, установленный в k8s
+$ helm upgrade <release-name> ./reddit
+
+```bash
+helm upgrade reddit-test  ./reddit
+```
+> output
+
+```markdown
+Release "reddit-test" has been upgraded. Happy Helming!
+LAST DEPLOYED: Mon Apr 23 15:15:07 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Secret
+NAME                 AGE
+reddit-test-mongodb  19m
+
+==> v1/PersistentVolumeClaim
+reddit-test-mongodb  19m
+
+==> v1/Service
+reddit-test-comment  19m
+reddit-test-mongodb  19m
+reddit-test-post     19m
+reddit-test-ui       19m
+
+==> v1beta2/Deployment
+reddit-test-comment  19m
+reddit-test-post     19m
+
+==> v1beta1/Deployment
+reddit-test-mongodb  19m
+reddit-test-ui       19m
+
+==> v1beta1/Ingress
+reddit-test-ui  19m
+```
+#### Проверим, всё ли поднялось. (Сначала поднялось далеков не всё, пришлось убивать и заново настраивать кластер, потому что ругалось на кол-во ядер)
+
+##### Удалили для чистоты эксперимента кластер и заново пересоздали через GCP. Подключаемся к созданному кластеру 
+
+```bash
+gcloud container clusters get-credentials cluster-1 --zone us-central1-a --project docker-194414
+```
+##### Включаем реплики австоскелера
+
+```bash
+kubectl scale deployment --replicas 3 -n kube-system kube-dns-autoscaler
+```
+##### Влючаем и Обновляем сетевую политику
+
+```bash
+gcloud beta container clusters update cluster-1 --zone=us-central1-a --enable-network-policy
+gcloud beta container clusters update cluster-1 --zone=us-central1-a --update-addons=NetworkPolicy=ENABLED
+```
+```bash
+kubectl apply -f tiller.yml
+helm init --service-account tiller
+cd Charts/reddit
+helm install reddit --name reddit-test
+```
+
+```bash
+kubectl get pods
+```
+
+```markdown
+NAME                                   READY     STATUS    RESTARTS   AGE
+reddit-test-comment-8675dbb45f-hkph2   1/1       Running   0          10h
+reddit-test-mongodb-f555f9bdb-hwt9x    1/1       Running   0          10h
+reddit-test-post-6f874c89cd-42ttm      1/1       Running   0          10h
+reddit-test-post-6f874c89cd-4w9x8      1/1       Running   0          10h
+reddit-test-post-6f874c89cd-p2rl7      1/1       Running   0          10h
+reddit-test-ui-9b5b4898-gjjtf          1/1       Running   0          10h
+```
+##### Узнаём адрес ингресса уя
+```bash
+kubectl get ingress
+```
+```markdown
+NAME             HOSTS     ADDRESS        PORTS     AGE
+reddit-test-ui   *         35.190.94.49   80        10h
+```
+##### Проверяем http://35.190.94.49/
+
+```markdown
+Microservices Reddit in default reddit-test-ui-9b5b4898-gjjtf container
+```
+## GitLab CI
+
+#### Gitlab будем ставить также с помощью Helm Chart’а из пакета Omnibus.
+
+##### 1) Добавим репозиторий Gitlab
+
+```bash
+helm repo add gitlab https://charts.gitlab.io
+```
+##### 2) Мы будем менять конфигурацию Gitlab, поэтому скачаем Chart
+
+```bash
+helm fetch gitlab/gitlab-omnibus --version 0.1.36 --untar
+
+cd gitlab-omnibus
+
+helm install --name gitlab . -f values.yaml
+```
+
+Выпадает ошибка
+
+> Error: Get http://localhost:8080/api/v1/namespaces/kube-system/configmaps?labelSelector=OWNER%!D(MISSING)TILLER: dial tcp 127.0.0.1:8080: connect: connection refused
+
+##### изменяем automountServiceAccountToken to true
+
+```bash
+kubectl --namespace=kube-system edit deployment/tiller-deploy
+```
+> Error: Chart incompatible with Tiller v2.9.0-rc3
+
+##### Удалим проверку tiller в Charts/gitlab-omnibus/Chart.yaml
+
+```yaml
+apiVersion: v1
+description: GitLab Omnibus all-in-one bundle
+home: https://about.gitlab.com
+icon: https://gitlab.com/gitlab-com/gitlab-artwork/raw/master/logo/logo-square.png
+keywords:
+- git
+- ci
+- cd
+- deploy
+- issue tracker
+- code review
+- wiki
+maintainers:
+- email: support@gitlab.com
+  name: GitLab Inc.
+- name: Mark Pundsack
+- name: Jason Plum
+- name: DJ Mountney
+- name: Joshua Lambert
+name: gitlab-omnibus
+sources:
+- http://docs.gitlab.com/ce/install/kubernetes/
+- https://gitlab.com/charts/charts.gitlab.io
+version: 0.1.37
+
+```
+```bash
+helm install --name gitlab . -f values.yaml
+```
+> output
+
+```markdown
+NAME:   gitlab
+LAST DEPLOYED: Fri Apr 27 15:23:08 2018
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1beta1/Ingress
+NAME           AGE
+gitlab-gitlab  2s
+
+==> v1/ConfigMap
+gitlab-gitlab-runner             2s
+gitlab-gitlab-config             2s
+gitlab-gitlab-postgresql-initdb  2s
+kube-lego                        2s
+nginx                            2s
+tcp-ports                        2s
+
+==> v1/StorageClass
+gitlab-gitlab-fast  2s
+
+==> v1/PersistentVolumeClaim
+gitlab-gitlab-config-storage      2s
+gitlab-gitlab-registry-storage    2s
+gitlab-gitlab-storage             2s
+gitlab-gitlab-postgresql-storage  2s
+gitlab-gitlab-redis-storage       2s
+
+==> v1/Service
+gitlab-gitlab             2s
+gitlab-gitlab-postgresql  2s
+gitlab-gitlab-redis       2s
+default-http-backend      2s
+nginx                     2s
+
+==> v1beta1/DaemonSet
+nginx  2s
+
+==> v1/Namespace
+kube-lego      2s
+nginx-ingress  2s
+
+==> v1/Secret
+gitlab-gitlab-runner   2s
+gitlab-gitlab-secrets  2s
+
+==> v1beta1/Deployment
+gitlab-gitlab-runner      2s
+gitlab-gitlab             2s
+gitlab-gitlab-postgresql  2s
+gitlab-gitlab-redis       2s
+kube-lego                 2s
+default-http-backend      2s
+
+
+NOTES:
+
+  It may take several minutes for GitLab to reconfigure.
+    You can watch the status by running `kubectl get deployment -w gitlab-gitlab --namespace default
+  You did not specify a baseIP so one will be assigned for you.
+  It may take a few minutes for the LoadBalancer IP to be available.
+  Watch the status with: 'kubectl get svc -w --namespace nginx-ingress nginx', then:
+
+  export SERVICE_IP=$(kubectl get svc --namespace nginx-ingress nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+  Then make sure to configure DNS with something like:
+    *.example.com       300 IN A $SERVICE_IP
+
+```
+
+
+
+```bash
+kubectl get service -n nginx-ingress nginx
+```
+> output
+
+```markdown
+NAME      TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                   AGE
+nginx     LoadBalancer   10.11.255.184   35.224.52.250   80:30339/TCP,443:30267/TCP,22:32649/TCP   11m
+
+```
+
+````bash
+echo "35.224.52.250 gitlab-gitlab staging production” >> /etc/hosts
+````
+```bash
+kubectl get pods
+```
+>output
+
+```markdown
+NAME                                        READY     STATUS    RESTARTS   AGE
+gitlab-gitlab-764bd7665-8pr5z               1/1       Running   0          18m
+gitlab-gitlab-postgresql-5fff4f67bb-hp8cb   1/1       Running   0          18m
+gitlab-gitlab-redis-6c88945d56-56xzd        1/1       Running   0          18m
+gitlab-gitlab-runner-f7c85548-q9z45         1/1       Running   4          18m
+```
+
+```markdown
+Идем по адресу http://gitlab-gitlab
+1) Ставим собственный пароль.
+2) Логинимся под пользователем root и новым паролем otusgitlab
+```
+### Запустим проект
+
+##### Создаем группу В качестве имени свой Docker ID asomir. http://gitlab-gitlab/asomir В настройках группы выберем пункт CI/CD
+
+##### Добавляем 2 переменные - Эти учетные данные будут использованы при сборке и релизе docker-образов с помощью Gitlab CI
+
+CI_REGISTRY_USER - логин в dockerhub
+CI_REGISTRY_PASSWORD - пароль от Docker Hub
+
+##### В группе создадим новый проект reddit-deploy. 
+
+#### Задание
+#### Создайте еще 3 проекта: post, ui, comment (сделайте также их публичными)
+
+##### Локально у себя создаем директорию Gitlab_ci со следующей структурой директорий.
+
+##### Перенесём исходные коды сервиса
+
+````markdown
+├── comment
+│   ├── build_info.txt
+│   ├── comment_app.rb
+│   ├── config.ru
+│   ├── docker_build.sh
+│   ├── Dockerfile
+│   ├── Gemfile
+│   ├── Gemfile.lock
+│   ├── helpers.rb
+│   └── VERSION
+├── post
+│   ├── build_info.txt
+│   ├── docker_build.sh
+│   ├── Dockerfile
+│   ├── get-pip.py
+│   ├── helpers.py
+│   ├── post_app.py
+│   ├── requirements.txt
+│   └── VERSION
+├── reddit-deploy
+│   ├── comment
+│   │   ├── Chart.yaml
+│   │   ├── templates
+│   │   │   ├── deployment.yaml
+│   │   │   ├── _helpers.tpl
+│   │   │   └── service.yaml
+│   │   └── values.yaml
+│   ├── post
+│   │   ├── Chart.yaml
+│   │   ├── templates
+│   │   │   ├── deployment.yaml
+│   │   │   ├── _helpers.tpl
+│   │   │   └── service.yaml
+│   │   └── values.yaml
+│   ├── reddit
+│   │   ├── charts
+│   │   │   ├── comment-1.0.0.tgz
+│   │   │   ├── mongodb-0.4.18.tgz
+│   │   │   ├── post-1.0.0.tgz
+│   │   │   └── ui-1.0.0.tgz
+│   │   ├── Chart.yaml
+│   │   ├── requirements.lock
+│   │   ├── requirements.yaml
+│   │   ├── requirements.yml
+│   │   └── values.yaml
+│   └── ui
+│       ├── Chart.yaml
+│       ├── templates
+│       │   ├── deployment.yaml
+│       │   ├── _helpers.tpl
+│       │   ├── ingress.yaml
+│       │   └── service.yaml
+│       └── values.yaml
+└── ui
+    ├── build_info.txt
+    ├── config.ru
+    ├── docker_build.sh
+    ├── Dockerfile
+    ├── Gemfile
+    ├── Gemfile.lock
+    ├── helpers.rb
+    ├── middleware.rb
+    ├── ui_app.rb
+    ├── VERSION
+    └── views
+        ├── create.haml
+        ├── index.haml
+        ├── layout.haml
+        └── show.haml
+
+````
+##### В директории Gitlab_ci/ui:
+
+1) Инициализируем локальный git-репозиторий
+$ git init
+2) Добавим удаленный репозиторий
+$ git remote add origin http://gitlab-gitlab/chromko/ui.git
+3) Закоммитим и отправим в gitlab
+$ git add .
+$ git commit -m “init”
+$ git push origin master
+
+##### То же самое происходит с comment, post.
+
+####  1) Перенести содержимое директории Charts (папки ui, post, comment, reddit) в Gitlab_ci/reddit-deploy
+####  2) Запушить reddit-deploy в gitlab-проект reddit-deploy
+
+
+### Настроим CI
+
+##### 1) Создайте файл Gitlab_ci/ui/.gitlab-ci.yml с содержимым 
+
+```yaml
+image: alpine:latest
+
+stages:
+  - build
+  - test
+  - release
+  - cleanup
+ 
+build:
+  stage: build
+  image: docker:git
+  services:
+    - docker:dind
+  script:
+    - setup_docker
+    - build
+  variables:
+    DOCKER_DRIVER: overlay2
+  only:
+    - branches
+
+test:
+  stage: test
+  script:
+    - exit 0
+  only:
+    - branches
+
+release:
+  stage: release
+  image: docker
+  services:
+    - docker:dind
+  script:
+    - setup_docker
+    - release
+  only:
+    - master
+
+.auto_devops: &auto_devops |
+  [[ "$TRACE" ]] && set -x
+  export CI_REGISTRY="index.docker.io"
+  export CI_APPLICATION_REPOSITORY=$CI_REGISTRY/$CI_PROJECT_PATH
+  export CI_APPLICATION_TAG=$CI_COMMIT_REF_SLUG
+  export CI_CONTAINER_NAME=ci_job_build_${CI_JOB_ID}
+  export TILLER_NAMESPACE="kube-system"
+
+  function setup_docker() {
+    if ! docker info &>/dev/null; then
+      if [ -z "$DOCKER_HOST" -a "$KUBERNETES_PORT" ]; then
+        export DOCKER_HOST='tcp://localhost:2375'
+      fi
+    fi
+  }
+
+  function release() {
+
+    echo "Updating docker images ..."
+
+    if [[ -n "$CI_REGISTRY_USER" ]]; then
+      echo "Logging to GitLab Container Registry with CI credentials..."
+      docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+      echo ""
+    fi
+
+    docker pull "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG"
+    docker tag "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG" "$CI_APPLICATION_REPOSITORY:$(cat VERSION)"
+    docker push "$CI_APPLICATION_REPOSITORY:$(cat VERSION)"
+    echo ""
+  }
+
+  function build() {
+
+    echo "Building Dockerfile-based application..."
+    echo `git show --format="%h" HEAD | head -1` > build_info.txt
+    echo `git rev-parse --abbrev-ref HEAD` >> build_info.txt
+    docker build -t "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG" .
+
+    if [[ -n "$CI_REGISTRY_USER" ]]; then
+      echo "Logging to GitLab Container Registry with CI credentials..."
+      docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+      echo ""
+    fi
+
+    echo "Pushing to GitLab Container Registry..."
+    docker push "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG"
+    echo ""
+  }
+
+before_script:
+  - *auto_devops
+```
+
+##### 2) Закомитьте и запуште в gitlab
+
+##### 3) Проверьте, что Pipeline работает
+
+```markdown
+В текущей конфигурации CI выполняет
+1) Build: Сборку докер-образа с тегом master
+2) Test: Фиктивное тестирование
+3) Release: Смену тега с master на тег из файла VERSION и пуш docker-образа с новым тегом 
+
+Job для выполнения каждой задачи запускается в отдельномKubernetes POD-е.
+
+Требуемые операции вызываются в блоках script:
+
+script:
+- setup_docker
+- build
+
+
+Описание самих операций производится в виде bash-функций в блоке .auto_devops:
+
+
+.auto_devops: &auto_devops |
+function setup_docker() {
+...
+}
+function release() {
+...
+}
+function build() {
+...
+}
+
+```
+##### Обновим конфиг ингресса для сервиса UI:
+reddit-deploy/ui/templates/values.yml
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ template "ui.fullname" . }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.class }}
+spec:
+  rules:
+  - host: {{ .Values.ingress.host | default .Release.Name }}
+    http:
+      paths:
+      - path: /                                                       # У nginx свои правила
+        backend:
+          serviceName: {{ template "ui.fullname" . }}
+          servicePort: {{ .Values.service.externalPort }}
+```
+
+reddit-deploy/ui/templates/values.yml
+
+```yaml
+service:
+  internalPort: 9292
+  externalPort: 9292
+
+image:
+  repository: asomir/ui
+  tag: latest
+
+ingress:
+  class: nginx          # Будем использовать nginx-ingress, который был поставлен вместе с gitlab-ом (так быстрее и правила более гибкие, чем у GCP
+
+postHost:
+postPort:
+commentHost:
+commentPort:
+```
+
+#### Дадим возможность разработчику запускать отдельное окружение в Kubernetes по коммиту в feature-бранч.
+
+##### 1) Создадим новый бранч в репозитории ui
+
+```bash
+git checkout -b feature/3
+```
+
+##### 2) Обновите ui/.gitlab-ci.yml файл
+
+```yaml
+image: alpine:latest
+
+stages:
+  - build
+  - test
+  - review
+  - release
+
+build:
+  stage: build
+  image: docker:git
+  services:
+    - docker:dind
+  script:
+    - setup_docker
+    - build
+  variables:
+    DOCKER_DRIVER: overlay2
+  only:
+    - branches
+
+test:
+  stage: test
+  script:
+    - exit 0
+  only:
+    - branches
+
+release:
+  stage: release
+  image: docker
+  services:
+    - docker:dind
+  script:
+    - setup_docker
+    - release
+  only:
+    - master
+
+review:
+  stage: review
+  script:
+    - install_dependencies
+    - ensure_namespace
+    - install_tiller
+    - deploy
+  variables:
+    KUBE_NAMESPACE: review
+    host: $CI_PROJECT_PATH_SLUG-$CI_COMMIT_REF_SLUG
+  environment:
+    name: review/$CI_PROJECT_PATH/$CI_COMMIT_REF_NAME
+    url: http://$CI_PROJECT_PATH_SLUG-$CI_COMMIT_REF_SLUG
+  only:
+    refs:
+      - branches
+    kubernetes: active
+  except:
+    - master
+
+.auto_devops: &auto_devops |
+  [[ "$TRACE" ]] && set -x
+  export CI_REGISTRY="index.docker.io"
+  export CI_APPLICATION_REPOSITORY=$CI_REGISTRY/$CI_PROJECT_PATH
+  export CI_APPLICATION_TAG=$CI_COMMIT_REF_SLUG
+  export CI_CONTAINER_NAME=ci_job_build_${CI_JOB_ID}
+  export TILLER_NAMESPACE="kube-system"
+
+  function deploy() {
+    track="${1-stable}"
+    name="$CI_ENVIRONMENT_SLUG"
+
+    if [[ "$track" != "stable" ]]; then
+      name="$name-$track"
+    fi
+
+    echo "Clone deploy repository..."
+    git clone http://gitlab-gitlab/$CI_PROJECT_NAMESPACE/reddit-deploy.git
+
+    echo "Download helm dependencies..."
+    helm dep update reddit-deploy/reddit
+
+    echo "Deploy helm release $name to $KUBE_NAMESPACE"
+    helm upgrade --install \
+      --wait \
+      --set ui.ingress.host="$host" \
+      --set $CI_PROJECT_NAME.image.tag=$CI_APPLICATION_TAG \
+      --namespace="$KUBE_NAMESPACE" \
+      --version="$CI_PIPELINE_ID-$CI_JOB_ID" \
+      "$name" \
+      reddit-deploy/reddit/
+  }
+
+  function install_dependencies() {
+
+    apk add -U openssl curl tar gzip bash ca-certificates git
+    wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://raw.githubusercontent.com/sgerrand/alpine-pkg-glibc/master/sgerrand.rsa.pub
+    wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.23-r3/glibc-2.23-r3.apk
+    apk add glibc-2.23-r3.apk
+    rm glibc-2.23-r3.apk
+
+    curl https://storage.googleapis.com/pub/gsutil.tar.gz | tar -xz -C $HOME
+    export PATH=${PATH}:$HOME/gsutil
+
+    curl https://kubernetes-helm.storage.googleapis.com/helm-v2.7.2-linux-amd64.tar.gz | tar zx
+
+    mv linux-amd64/helm /usr/bin/
+    helm version --client
+
+    curl  -o /usr/bin/sync-repo.sh https://raw.githubusercontent.com/kubernetes/helm/master/scripts/sync-repo.sh
+    chmod a+x /usr/bin/sync-repo.sh
+
+    curl -L -o /usr/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+    chmod +x /usr/bin/kubectl
+    kubectl version --client
+  }
+
+  function setup_docker() {
+    if ! docker info &>/dev/null; then
+      if [ -z "$DOCKER_HOST" -a "$KUBERNETES_PORT" ]; then
+        export DOCKER_HOST='tcp://localhost:2375'
+      fi
+    fi
+  }
+
+  function ensure_namespace() {
+    kubectl describe namespace "$KUBE_NAMESPACE" || kubectl create namespace "$KUBE_NAMESPACE"
+  }
+
+  function release() {
+
+    echo "Updating docker images ..."
+
+    if [[ -n "$CI_REGISTRY_USER" ]]; then
+      echo "Logging to GitLab Container Registry with CI credentials..."
+      docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+      echo ""
+    fi
+
+    docker pull "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG"
+    docker tag "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG" "$CI_APPLICATION_REPOSITORY:$(cat VERSION)"
+    docker push "$CI_APPLICATION_REPOSITORY:$(cat VERSION)"
+    echo ""
+  }
+
+  function build() {
+
+    echo "Building Dockerfile-based application..."
+    echo `git show --format="%h" HEAD | head -1` > build_info.txt
+    echo `git rev-parse --abbrev-ref HEAD` >> build_info.txt
+    docker build -t "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG" .
+
+    if [[ -n "$CI_REGISTRY_USER" ]]; then
+      echo "Logging to GitLab Container Registry with CI credentials..."
+      docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+      echo ""
+    fi
+
+    echo "Pushing to GitLab Container Registry..."
+    docker push "$CI_APPLICATION_REPOSITORY:$CI_APPLICATION_TAG"
+    echo ""
+  }
+
+  function install_tiller() {
+    echo "Checking Tiller..."
+    helm init --upgrade
+    kubectl rollout status -n "$TILLER_NAMESPACE" -w "deployment/tiller-deploy"
+    if ! helm version --debug; then
+      echo "Failed to init Tiller."
+      return 1
+    fi
+    echo ""
+  }
+
+before_script:
+  - *auto_devops
+```
+##### 3) Закоммитим и запушим изменения
+
+```bash
+git commit -am "Add review feature"
+git push origin feature/3
+```
+##### В коммитах ветки feature/3 можно найти сделанные изменения
+Отметим, что мы добавили стадию review, запускающую приложение в k8s по коммиту в feature-бранчи (не master).
+```yaml
+review:
+  stage: review
+  script:
+    - install_dependencies
+    - ensure_namespace
+    - install_tiller
+    - deploy
+  variables:
+    KUBE_NAMESPACE: review
+    host: $CI_PROJECT_PATH_SLUG-$CI_COMMIT_REF_SLUG
+  environment:
+    name: review/$CI_PROJECT_PATH/$CI_COMMIT_REF_NAME
+    url: http://$CI_PROJECT_PATH_SLUG-$CI_COMMIT_REF_SLUG
+  only:
+    refs:
+      - branches
+    kubernetes: active
+  except:
+    - master
+```
+##### Мы добавили функцию deploy, которая загружает Chart из репозитория reddit-deploy и делает релиз в неймспейсе review с
+образом приложения, собранным на стадии build.
+
+```yaml
+  function deploy() {
+    track="${1-stable}"
+    name="$CI_ENVIRONMENT_SLUG"
+
+    if [[ "$track" != "stable" ]]; then
+      name="$name-$track"
+    fi
+
+    echo "Clone deploy repository..."
+    git clone http://gitlab-gitlab/$CI_PROJECT_NAMESPACE/reddit-deploy.git
+
+    echo "Download helm dependencies..."
+    helm dep update reddit-deploy/reddit
+
+    echo "Deploy helm release $name to $KUBE_NAMESPACE"
+    helm upgrade --install \
+      --wait \
+      --set ui.ingress.host="$host" \
+      --set $CI_PROJECT_NAME.image.tag=$CI_APPLICATION_TAG \
+      --namespace="$KUBE_NAMESPACE" \
+      --version="$CI_PIPELINE_ID-$CI_JOB_ID" \
+      "$name" \
+      reddit-deploy/reddit/
+   }
+```
+
+##### Можем увидеть какие релизы запущены
+
+```bash
+helm ls
+```
+
+>output
+```markdown
+Error: incompatible versions client[v2.9.0-rc3] server[v2.7.2]
+```
+```bash
+helm init --upgrade
+```
+```markdown
+$HELM_HOME has been configured at /home/asomir/.helm.
+
+Tiller (the Helm server-side component) has been upgraded to the current version.
+Happy Helming!
+[asomir@asomir-ubuntu ui]$ helm ls
+NAME                    REVISION        UPDATED                         STATUS          CHART                   NAMESPACE
+gitlab                  1               Fri Apr 27 15:23:08 2018        DEPLOYED        gitlab-omnibus-0.1.37   default  
+review-asomir-ui-ynrq6y 1               Fri Apr 27 18:30:53 2018        DEPLOYED        reddit-0.1.0            review   
+```
+Созданные для таких целей окружения временны, их требуется “убивать”, когда они больше не нужны.
+
+##### Добавляем в .gitlab-ci.yml
+
+```yaml
+stop_review:
+  stage: cleanup
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - install_dependencies
+    - delete
+  environment:
+    name: review/$CI_PROJECT_PATH/$CI_COMMIT_REF_NAME
+    action: stop
+  when: manual
+  allow_failure: true
+  only:
+    refs:
+      - branches
+    kubernetes: active
+  except:
+    - master
+
+```
+```markdown
+stages:
+- build
+- test
+- review
+- release
+- cleanup
+review:
+stage: review
+ 
+environment:
+name: review/$CI_PROJECT_PATH/$CI_COMMIT_REF_NAME
+url: http://$CI_PROJECT_PATH_SLUG-$CI_COMMIT_REF_SLUG
+on_stop: stop_review
+```
+
+###### 1. Добавим функцию удаления окружения
+
+```yaml
+function delete() {
+    track="${1-stable}"
+    name="$CI_ENVIRONMENT_SLUG"
+    helm delete "$name" --purge || true
+  }
+```
+##### 2. Запушим изменения в Git
+##### 3. Зайдите в Pipelines ветки feature/3
+##### 4. Запустим удаление окружения
+
+```bash
+helm ls
+```
+```markdown
+NAME    REVISION        UPDATED                         STATUS          CHART                   NAMESPACE
+gitlab  1               Fri Apr 27 15:23:08 2018        DEPLOYED        gitlab-omnibus-0.1.37   default  
+```
+### Деплоим
+
+Теперь создадим staging и production среды для работы приложения
+
+reddit-deploy/.gitlab-ci.yml
+
+```yaml
+image: alpine:latest
+
+stages:
+  - test
+  - staging
+  - production
+
+test:
+  stage: test
+  script:
+    - exit 0
+  only:
+    - triggers
+    - branches
+
+staging:
+  stage: staging
+  script:
+  - install_dependencies
+  - ensure_namespace
+  - install_tiller
+  - deploy
+  variables:
+    KUBE_NAMESPACE: staging
+  environment:
+    name: staging
+    url: http://staging
+  only:
+    refs:
+      - master
+    kubernetes: active
+
+production:
+  stage: production
+  script:
+    - install_dependencies
+    - ensure_namespace
+    - install_tiller
+    - deploy
+  variables:
+    KUBE_NAMESPACE: production
+  environment:
+    name: production
+    url: http://production
+  when: manual
+  only:
+    refs:
+      - master
+    kubernetes: active
+
+.auto_devops: &auto_devops |
+  # Auto DevOps variables and functions
+  [[ "$TRACE" ]] && set -x
+  export CI_REGISTRY="index.docker.io"
+  export CI_APPLICATION_REPOSITORY=$CI_REGISTRY/$CI_PROJECT_PATH
+  export CI_APPLICATION_TAG=$CI_COMMIT_REF_SLUG
+  export CI_CONTAINER_NAME=ci_job_build_${CI_JOB_ID}
+  export TILLER_NAMESPACE="kube-system"
+
+  function deploy() {
+    echo $KUBE_NAMESPACE
+    track="${1-stable}"
+    name="$CI_ENVIRONMENT_SLUG"
+    helm dep build reddit
+
+    # for microservice in $(helm dep ls | grep "file://" | awk '{print $1}') ; do
+    #   SET_VERSION="$SET_VERSION \ --set $microservice.image.tag='$(curl http://gitlab-gitlab/$CI_PROJECT_NAMESPACE/ui/raw/master/VERSION)' "
+
+    helm upgrade --install \
+      --wait \
+      --set ui.ingress.host="$host" \
+      --set ui.image.tag="$(curl http://gitlab-gitlab/$CI_PROJECT_NAMESPACE/ui/raw/master/VERSION)" \
+      --set post.image.tag="$(curl http://gitlab-gitlab/$CI_PROJECT_NAMESPACE/post/raw/master/VERSION)" \
+      --set comment.image.tag="$(curl http://gitlab-gitlab/$CI_PROJECT_NAMESPACE/comment/raw/master/VERSION)" \
+      --namespace="$KUBE_NAMESPACE" \
+      --version="$CI_PIPELINE_ID-$CI_JOB_ID" \
+      "$name" \
+      reddit
+  }
+
+  function install_dependencies() {
+
+    apk add -U openssl curl tar gzip bash ca-certificates git
+    wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://raw.githubusercontent.com/sgerrand/alpine-pkg-glibc/master/sgerrand.rsa.pub
+    wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.23-r3/glibc-2.23-r3.apk
+    apk add glibc-2.23-r3.apk
+    rm glibc-2.23-r3.apk
+
+    curl https://kubernetes-helm.storage.googleapis.com/helm-v2.7.2-linux-amd64.tar.gz | tar zx
+
+    mv linux-amd64/helm /usr/bin/
+    helm version --client
+
+    curl -L -o /usr/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+    chmod +x /usr/bin/kubectl
+    kubectl version --client
+  }
+
+  function ensure_namespace() {
+    kubectl describe namespace "$KUBE_NAMESPACE" || kubectl create namespace "$KUBE_NAMESPACE"
+  }
+
+  function install_tiller() {
+    echo "Checking Tiller..."
+    helm init --upgrade
+    kubectl rollout status -n "$TILLER_NAMESPACE" -w "deployment/tiller-deploy"
+    if ! helm version --debug; then
+      echo "Failed to init Tiller."
+      return 1
+    fi
+    echo ""
+  }
+
+  function delete() {
+    track="${1-stable}"
+    name="$CI_ENVIRONMENT_SLUG"
+    helm delete "$name" || true
+  }
+
+before_script:
+  - *auto_devops
+```
+
+##### Запушим в репозиторий reddit-deploy ветку master
+Этот файл отличается от предыдущих тем, что:
+1) Не собирает docker-образы
+2) Деплоит на статичные окружения (staging и production)
+3) Не удаляет окружения
+
+```markdown
+NAME            REVISION        UPDATED                         STATUS          CHART                   NAMESPACE 
+gitlab          1               Fri Apr 27 15:23:08 2018        DEPLOYED        gitlab-omnibus-0.1.37   default   
+production      1               Fri Apr 27 19:55:59 2018        DEPLOYED        reddit-0.1.0            production
+staging         1               Fri Apr 27 19:52:04 2018        DEPLOYED        reddit-0.1.0            staging   
+```
+
+Удостоверяемся, что staging успешно завершен. В Environments находим staging. Приложение работает!
+
+Выкатываем на production --> Ручной деплой 
+
+И ждем пока пайплайн пройдет
+
+Убеждаемся, что в хелме тоже всё видно.
+
+```bash
+helm ls
+```
+````markdown
+NAME            REVISION        UPDATED                         STATUS          CHART                   NAMESPACE 
+gitlab          1               Fri Apr 27 15:23:08 2018        DEPLOYED        gitlab-omnibus-0.1.37   default   
+production      1               Fri Apr 27 19:55:59 2018        DEPLOYED        reddit-0.1.0            production
+staging         1               Fri Apr 27 19:52:04 2018        DEPLOYED        reddit-0.1.0            staging   
+````
+
+
+
+
 # Homework-30. Kubernetes. Networks ,Storages
 
 ## Сетевое взаимодействие
@@ -942,6 +5336,7 @@ https://console.cloud.google.com/compute/disks
 
 
 
+
 # Homework-29. 
 ## Kubernetes. Запуск кластера и приложения. Модель безопасности.
 
@@ -1627,1201 +6022,7 @@ kubectl delete -f mongodb-service.yml
 ###### Добавляем сервис монги для БД post, добавим метку post-db: "true" чтобы различить сервис
 post-mongodb-service.yml
 
-```yamlex
-apiVersion: v1
-kind: Service
-metadata:
-  name: post-db
-  labels:
-    app: reddit
-    component: mongo
-    post-db: "true"
-spec:
-  ports:
-  - port: 27017
-    protocol: TCP
-    targetPort: 27017
-  selector:
-    app: reddit
-    component: mongo
-    post-db: "true"
-```
-##### Лейбл в deployment чтобы было понятно, что развернуто
-mongo-deployment.yml
-
-```yamlex
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  name: mongo
-  labels:
-    app: reddit
-    component: mongo
-    comment-db: "true"
-    post-db: "true"     # вот здесь для поста
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: reddit
-      component: mongo
-  template:
-    metadata:
-      name: mongo
-      labels:
-        app: reddit
-        component: mongo
-        comment-db: "true"
-        post-db: "true"     # и здесь для поста
-    spec:
-      containers:
-      - image: mongo:3.2
-        name: mongo
-```
-##### В самом посте зададим переменную окружения для обращения к базе 
-
-post-deployment.yml
-
-```yamlex
-apiVersion: apps/v1beta2
-kind: Deployment
-metadata:
-  name: post
-  labels:
-    app: reddit
-    component: post
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: reddit
-      component: post
-  template:
-    metadata:
-      name: post
-      labels:
-        app: reddit
-        component: post
-    spec:
-      containers:
-      - image: asomir/post
-        name: post
-        env:                            # собсна, переменная окружения
-        - name: COMMENT_DATABASE_HOST
-          value: post-db
-```
-##### Пересоздадим сервисы и переподнимем поды 
-
-```bash
-kubectl delete -f post-deployment.yml 
-kubectl apply -f post-deployment.yml 
-kubectl apply -f post-mongodb-service.yml
-kubectl delete -f mongo-deployment.yml 
-kubectl apply -f mongo-deployment.yml 
-```
-
-##### Нам нужно как-то обеспечить доступ к ui-сервису снаружи. Для этого нам понадобится Service для UI-компоненты
-
-ui-service.yml
-
-```yamlex
-apiVersion: v1
-kind: Service
-metadata:
-  name: ui
-  labels:
-    app: reddit
-    component: ui
-spec:
-  type: NodePort    # Главное отличие - тип сервиса NodePort.
-  ports:
-  - port: 9292
-    protocol: TCP
-    targetPort: 9292
-  selector:
-    app: reddit
-    component: ui
-```
->По-умолчанию все сервисы имеют тип ClusterIP - это значит, что сервис распологается на внутреннем диапазоне IP-адресов кластера. Снаружи до него
-нет доступа.
-Тип NodePort - на каждой ноде кластера открывает порт из диапазона 30000-32767 и переправляет трафик с этого порта на тот, который указан в
-targetPort Pod (похоже на стандартный expose в docker) Теперь до сервиса можно дойти по <Node-IP>:<NodePort>
-
-##### Также можно указать самим NodePort (но все равно из диапазона):
-
-```yamlex
-apiVersion: v1
-kind: Service
-metadata:
-  name: ui
-  labels:
-    app: reddit
-    component: ui
-spec:
-  type: NodePort
-  ports:
-  - nodePort: 32092 # вот так вот
-    port: 9292
-    protocol: TCP
-    targetPort: 9292
-  selector:
-    app: reddit
-    component: ui
-```
-> Т.е. в описании service NodePort - для доступа снаружи кластера port - для доступа к сервису изнутри кластера
-
-## Minikube
-
-###### Minikube может выдавать web-странцы с сервисами которые были помечены типом NodePort
-
-```bash
-minikube service ui
-```
-
-###### Minikube может перенаправлять на web-странцы с сервисами которые были помечены типом NodePort. Список сервисов:
-
-```bash
-minikube service list
-```
-```markdown
-|-------------|----------------------|-----------------------------|
-|  NAMESPACE  |         NAME         |             URL             |
-|-------------|----------------------|-----------------------------|
-| default     | comment              | No node port                |
-| default     | comment-db           | No node port                |
-| default     | kubernetes           | No node port                |
-| default     | post                 | No node port                |
-| default     | post-db              | No node port                |
-| default     | ui                   | http://192.168.99.100:32092 |
-| kube-system | kube-dns             | No node port                |
-| kube-system | kubernetes-dashboard | http://192.168.99.100:30000 |
-|-------------|----------------------|-----------------------------|
-
-```
-Minikube также имеет в комплекте несколько стандартных аддонов (расширений) для Kubernetes (kube-dns, dashboard, monitoring,...). 
-Каждое расширение - это такие же PODы и сервисы, какие создавались нами, только они еще общаются с API самого Kubernetes
-
-##### Получить список расширений:
-
-```bash
-minikube addons list
-```
-```markdown
-- addon-manager: enabled
-- coredns: disabled
-- dashboard: enabled
-- default-storageclass: enabled
-- efk: disabled
-- freshpod: disabled
-- heapster: disabled
-- ingress: disabled
-- kube-dns: enabled
-- registry: disabled
-- registry-creds: disabled
-- storage-provisioner: enabled
-```
-
-##### Включим addon Dashboard:
-```bash
-minikube addons enable dashboard
-```
-###### Посмотрим что запустилось:
-
-```bash
-kubectl get pods
-```
-```markdown
-NAME                       READY     STATUS    RESTARTS   AGE
-comment-5d5fb96865-g8dmx   1/1       Running   1          15h
-comment-5d5fb96865-mqxgf   1/1       Running   2          15h
-comment-5d5fb96865-zsjgp   1/1       Running   2          15h
-mongo-7756fd9fbb-k28hj     1/1       Running   1          15h
-post-7f48cf85d9-bv2p9      1/1       Running   1          15h
-post-7f48cf85d9-q48fj      1/1       Running   1          15h
-post-7f48cf85d9-xth9c      1/1       Running   1          15h
-ui-5b9965d589-8lqbz        1/1       Running   1          15h
-ui-5b9965d589-whdvh        1/1       Running   1          15h
-ui-5b9965d589-zwspp        1/1       Running   1          15h
-```
-
-## Namespaces
-
-> То есть вообще ничего нового. Поды и сервисы дашборда были запущены в неймспейсах kube-system. Когда мы просто жамкаем, 
-запрашивается пространство имён default
-
-> Namespace - это, по сути, виртуальный кластер Kubernetes внутри самого Kubernetes. Внутри каждого такого кластера
-находятся свои объекты (POD-ы, Service-ы, Deployment-ы и т.д.), кроме объектов, общих на все namespace-ы (nodes, ClusterRoles,
-PersistentVolumes) 
-
-> В разных namespace-ах могут находится объекты с одинаковым  именем, но в рамках одного namespace имена объектов должны
-быть уникальны.
-
-```markdown
-При старте Kubernetes кластер уже имеет 3 namespace:
-
-• default - для объектов для которых не определен другой
-Namespace (в нем мы работали все это время)
-
-• kube-system - для объектов созданных Kubernetes’ом и
-для управления им
-
-• kube-public - для объектов к которым нужен доступ из
-любой точки кластера
-
-Для того, чтобы выбрать конкретное пространство имен, нужно указать
-флаг -n <namespace> или --namespace <namespace> при запуске kubect
-```
-
-##### Найдем же объекты нашего dashboard
-
-```bash
-kubectl get all  -n kube-system --selector app=kubernetes-dashboard
-```
-> output
-
-```markdown
-NAME                                    READY     STATUS    RESTARTS   AGE
-kubernetes-dashboard-77d8b98585-pb8lb   1/1       Running   7          3d
-
-NAME                   TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
-kubernetes-dashboard   NodePort   10.101.197.233   <none>        80:30000/TCP   5d
-
-NAME                              DESIRED   CURRENT   READY     AGE
-kubernetes-dashboard-77d8b98585   1         1         1         3d
-kubernetes-dashboard-77d8b98585   1         1         1         3d
-```
-
-Мы вывели все объекты из неймспейса kube-system, имеющие label app=kubernetes-dashboard
-
-## Dashboard
-
-##### Зайдем в Dashboard
-
-```bash
-minikube service kubernetes-dashboard -n kube-system
-```
-
-```markdown
-В самом Dashboard можно:
-• отслеживать состояние кластера и рабочих нагрузок в нем
-• создавать новые объекты (загружать YAML-файлы)
-• Удалять и изменять объекты (кол-во реплик, yaml-файлы)
-• отслеживать логи в Pod-ах
-• при включении Heapster-аддона смотреть нагрузку на Pod-
-ах
-• и т.д.
-```
-
-##### Используем же namespace в наших целях. Отделим среду для разработки приложения от всего остального кластера.
-##### Для этого создадим свой Namespace dev:
-
-dev-namespace.yml
-
-```yamlex
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: dev
-```
-```bash
-kubectl apply -f dev-namespace.yml
-```
-
-##### Запустим приложение в dev неймспейсе:
-
-
-```bash
-kubectl apply -n dev -f comment-deployment.yml 
-kubectl apply -n dev -f mongo-deployment.yml 
-kubectl apply -n dev -f post-deployment.yml 
-kubectl apply -n dev -f ui-deployment.yml 
-kubectl apply -n dev -f comment-mongodb-service.yml 
-kubectl apply -n dev -f post-mongodb-service.yml 
-kubectl apply -n dev -f post-service.yml 
-kubectl apply -n dev -f comment-service.yml 
-kubectl apply -n dev -f ui-service.yml 
-```
-
->output
-The Service "ui" is invalid: spec.ports[0].nodePort: Invalid value: 32092: provided port is already allocated
-
-Опачки! Убираем NodePort из ui-service
-
-##### Смотрим результат: 
-
-```bash
-minikube service ui -n dev
-```
-
-##### Давайте добавим инфу об окружении внутрь контейнера UI:
-
-```markdown
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  name: ui
-  labels:
-    app: reddit
-    component: ui
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: reddit
-      component: ui
-  template:
-    metadata:
-      name: ui-pod
-      labels:
-        app: reddit
-        component: ui
-    spec:
-      containers:
-      - image: asomir/ui:latest
-        name: ui
-        env:
-        - name: ENV                             # Извлекаем значения из контекста запуска
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-```
-
-##### Передеплоим УЙ
-
-```bash
-kubectl apply -f ui-deployment.yml -n dev
-```
-
-В браузере видим Microservices Reddit in dev ui-7c865f78d5-j2fjf container
-
-## Kubernetes in GCP
-
-Мы подготовили наше приложение в локальном окружении. Теперь самое время запустить его на реальном кластере Kubernetes.
-В качестве основной платформы будем использовать Google Kubernetes Engine.
-
-##### Заходим в gcloud console, переходим в “kubernetes clusters” - “создать Cluster” 
-##### Жмём Connect и копируем команду:
-
-
-```bash
-gcloud container clusters get-credentials cluster-1 --zone us-central1-a --project docker-194414
-```
-
-> output 
-Fetching cluster endpoint and auth data.
-kubeconfig entry generated for cluster-1.
-
-
-В результате в файл ~/.kube/config будут добавлены
-user, cluster и context для подключения к кластеру в GKE.
-Также текущий контекст будет выставлен для подключения к
-этому кластеру.
-Убедиться можно, введя
-
-```bash
-kubectl config current-context
-```
-
-> output 
-gke_docker-194414_us-central1-a_cluster-1
-
-##### Запустим наше приложение в GKE. Создадим dev namespace
-
-```bash
-kubectl apply -f dev-namespace.yml
-```
-> output 
-namespace "dev" created
-
-##### Задеплоим все компоненты приложения в namespace dev:
-
-```bash
-kubectl apply -f . -n dev
-```
-> output 
-deployment.apps "comment" created
-service "comment-db" created
-service "comment" created
-namespace "dev" configured
-deployment.apps "mongo" created
-service "mongodb" created
-deployment.apps "post" created
-service "post-db" created
-service "post" created
-deployment.apps "ui" created
-service "ui" created
-
-##### Откроем Reddit для внешнего мира. в “правилах брандмауэра”
-
-```markdown
-Откроем диапазон портов kubernetes для публикации
-сервисов
-Настройте:
-• Название - произвольно, но понятно
-• Целевые экземпляры - все экземпляры в сети
-• Диапазоны IP-адресов источников  - 0.0.0.0/0
-Протоколы и порты - Указанные протоколы и порты
-tcp:30000-32767
-```
-
-##### Находим внешний IP-адрес любой ноды из кластера либо в веб-консоли, либо External IP в выводе:
-
-```bash
-kubectl get nodes -o wide
-```
-
-> output
-NAME                                       STATUS    ROLES     AGE       VERSION        EXTERNAL-IP      OS-IMAGE                             KERNEL-VERSION   CONTAINER-RUNTIME
-gke-cluster-1-default-pool-bb385f06-8c63   Ready     <none>    13m       v1.8.8-gke.0   35.188.17.21     Container-Optimized OS from Google   4.4.111+         docker://17.3.2
-gke-cluster-1-default-pool-bb385f06-qk9b   Ready     <none>    13m       v1.8.8-gke.0   35.184.151.174   Container-Optimized OS from Google   4.4.111+         docker://17.3.2
-
-##### Находим порт публикации УЯ: 
-
-```bash
-kubectl describe service ui  -n dev  | grep NodePort
-```
-```markdown
-Type:                     NodePort
-NodePort:                 <unset>  31041/TCP
-```
-
-##### Идём по адресу http://35.188.17.21:31041/
-
-> output
-Microservices Reddit in dev ui-9fbd5c654-wdbf9 container
-
-## GKE
-
-В GKE также можно запустить Dashboard для кластера. Жмём на кнопку edit. В появившемся меню кликаем Add-ons - Kubernetes dashboard - Enabled
-Ждем пока кластер загрузится
-
-```bash
-kubectl proxy
-``` 
-
-> output 
-Starting to serve on 127.0.0.1:8001
-
-##### Заходим по адресу http://localhost:8001/ui
-
-Не пущает 
-
-## Security
-
-Так произошло, потому что dashboard - это аддон и он подключается к API kubernetes.
-API его не пустило по причине того, что оно ничего не знает о пользователе (service account-е) system:serviceaccount:kube-system:default
-
-##### Добавим в систему Service Account для дашборда в namespace kube-system (там же запущен dashboard)
-
-````bash
-kubectl create sa kubernetes-dashboard -n kube-system
-````
-
-
-Нужно нашему Service Account назначить роль с достаточными правами на просмотр информации о кластере
-В кластере уже есть объект ClusterRole с названием cluster-admin. Тот, кому назначена эта роль имеет полный доступ
-ко всем объектам кластера.
-Давайте назначим эту роль service account-у dashboard-а с помощью clusterrolebinding (привязки)
-
-```bash
-kubectl create clusterrolebinding kubernetes-dashboard --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard
-```
-> output 
-clusterrolebinding.rbac.authorization.k8s.io "kubernetes-dashboard" created
-
-
-
-
-
-
-
-
-||||||| merged common ancestors
-=======
-# Homework-29. 
-## Kubernetes. Запуск кластера и приложения. Модель безопасности.
-
-### Разворачиваем Kubernetes локально
-
-Для дальнейшей работы нам нужно подготовить локальное окружение, которое будет состоять из:
-
-1) kubectl - фактически, главной утилиты для работы c Kubernetes API (все, что делает kubectl, можно сделать с помощью HTTP-запросов к API k8s)
-2) Директории ~/.kube - содержит служебную инфу для kubectl (конфиги, кеши, схемы API)
-3) minikube - утилиты для разворачивания локальной инсталляции Kubernetes.
-
-#### Kubectl
-
-##### Необходимо установить Kubectl:  https://kubernetes.io/docs/tasks/tools/install-kubectl/
-
-#### MiniKube: 
-
-##### Установка Миникубика:
-
-```bash
-curl -Lo minikube https://storage.googleapis.com/minikube/releases/v0.24.1/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
-```
-
-##### Запустим наш Minukube-кластер.
-
-```bash
-minikube start
-```
-
-> output
-
-```markdown
-Starting VM...
-Getting VM IP address...
-Moving files into cluster...
-Downloading localkube binary
- 148.25 MB / 148.25 MB [============================================] 100.00% 0s
- 0 B / 65 B [----------------------------------------------------------]   0.00%
- 65 B / 65 B [======================================================] 100.00% 0sSetting up certs...
-Connecting to cluster...
-Setting up kubeconfig...
-Starting cluster components...
-Kubectl is now configured to use the cluster.
-Loading cached images from config file.
-```
-
-#### Kubectl
-##### Наш Minikube-кластер развернут. При этом автоматически был настроен конфиг kubectl. Проверим, что это так:
-
-```bash
-kubectl get nodes
-```
-
-> output
-
-```markdown
-NAME       STATUS    ROLES     AGE       VERSION
-minikube   Ready     <none>    51s       v1.8.0
-```
-
-####### Конфигурация kubectl - это контекст. Контекст - это комбинация:
-
-1) cluster - API-сервер
-2) user - пользователь для подключения к кластеру
-3) namespace - область видимости (не обязательно, по умолчанию default)
-
-Информацию о контекстах kubectl сохраняет в файле ~/.kube/config - это такой же манифест kubernetes в YAML-формате (есть и Kind, и ApiVersion).
-
-###### Кластер (cluster) - это:
-
-1) server - адрес kubernetes API-сервера
-2) certificate-authority - корневой сертификат (которым подписан SSL-сертификат самого сервера), чтобы убедиться, 
-что нас не обманывают и перед нами тот самый сервер  
-+ name (Имя) для идентификации в конфиге
-
-```markdown
-apiVersion: v1
-clusters:
-- cluster:
-    certificate-authority: /home/asomir/.minikube/ca.crt
-    server: https://192.168.99.100:8443
-  name: minikube
-```
-
-###### Пользователь (user) - это:
-1) Данные для аутентификации (зависит от того, как настроен сервер). Это могут быть:
-    • username + password (Basic Auth
-    • client key + client certificate
-    • token
-    • auth-provider config (например GCP)
-+ name (Имя) для идентификации в конфиге
-
-```markdown
-users:
-- name: minikube
-  user:
-    as-user-extra: {}
-    client-certificate: /home/asomir/.minikube/client.crt
-    client-key: /home/asomir/.minikube/client.key
-```
-###### Контекст (контекст) - это:
-
-1) cluster - имя кластера из списка clusters
-2) user - имя пользователя из списка users
-3) namespace - область видимости по-умолчанию (не
-обязательно)
-+ name (Имя) для идентификации в конфиге
-
-```markdown
-contexts:
-- context:
-    cluster: minikube
-    user: minikube
-  name: minikube
-```
-
-##### Обычно порядок конфигурирования kubectl следующий:
-1) Создать cluster :
-
-> kubectl config set-cluster ... cluster_name
-
-2) Создать данные пользователя (credentials)
-
-> kubectl config set-credentials ... user_name
-
-3) Создать контекст
-
-> kubectl config set-context context_name \
-    --cluster=cluster_name \
-    --user=user_name
-
-4) Использовать контекст
-
-> kubectl config use-context context_name
-
-###### Таким образом kubectl конфигурируется для подключения к разным кластерам, под разными пользователями.
-##### Текущий контекст можно увидеть так:
-
-```bash
-kubectl config current-context
-```
-> output
-
-```markdown
-minikube
-```
-
-Список всех контекстов можно увидеть так:
-
-```bash
-kubectl config get-contexts
-```
-
-> output
-
-```markdown
-CURRENT   NAME       CLUSTER    AUTHINFO   NAMESPACE
-*         minikube   minikube   minikube   
-```
-
-#### Запустим приложение
-
-Для работы в приложения kubernetes, нам необходимо описать их желаемое состояние либо в YAML-манифестах,
-либо с помощью командной строки. Основные объекты - это ресурсы Deployment.
-
-Как помним из предыдущего занятия, его основные задачи:
-
-• Создание ReplicationSet (следит, чтобы число запущенных Pod-ов соответствовало описанному)
-
-• Ведение истории версий запущенных Pod-ов (для различных стратегий деплоя, для возможностей отката)
-
-• Описание процесса деплоя (стратегия, параметры стратегий)
-
-```yamlex
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:               # блок метаданных деплоя
-  name: ui
-  labels:
-    app: reddit
-    component: ui
-spec:                   # блок спецификации деплоя
-  replicas: 3
-  selector:             # описывает, как отслеживать поды, - контроллер будет считать поды с метками app=reddit И component=ui
-    matchLabels:
-      app: reddit
-      component: ui
-  template:             # блок описания подов 
-    metadata:
-      name: ui-pod
-      labels:           # поэтому важно в описаниия пода задать нужные лабельки 
-        app: reddit     # Для более гибкой выборки вводим 2
-        component: ui   # метки (app и component).
-    spec:
-      containers:
-      - image: asomir/ui # какой берём образ для деплоя 
-        name: ui
-```
-
-### УЙ 
-
-##### Запустим в Minikube ui-компоненту.
-
-```bash
-kubectl apply -f ui-deployment.yml
-```
-> output
-
-```markdown
-deployment.apps "ui" created
-```
-
-##### Убедимся, что во 2,3,4 и 5 столбцах стоит число 3 (число реплик ui):
-
-```bash
-kubectl get deployment
-```
-
-> output вначале показал 
-
-```markdown
-NAME      DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-ui        3         3         3            0           1m
-```
-> затем через несколько секунд исправился 
-
-```markdown
-NAME      DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-ui        3         3         3            0           1m
-```
-
-> P.S. kubectl apply -f <filename> может принимать не только отдельный файл, но и папку с ними. Например:
-kubectl apply -f ./kube
-
-Пока что мы не можем использовать наше приложение полностью,потому что никак не настроена сеть для общения с ним.
-Но kubectl умеет пробрасывать сетевые порты POD-ов на локальную машину
-
-##### Найдем, используя selector, POD-ы приложения
-
-```bash
-kubectl get pods --selector component=ui
-```
-> output
-
-```markdown
-NAME                 READY     STATUS    RESTARTS   AGE
-ui-bf7c99cb8-2pl8d   1/1       Running   0          5m
-ui-bf7c99cb8-kzn6l   1/1       Running   0          5m
-ui-bf7c99cb8-tb2z7   1/1       Running   0          5m
-```
-```bash
-kubectl port-forward ui-bf7c99cb8-2pl8d  8080:9292
-```
-
-##### Зайдем в браузере на http://localhost:8080
-
-```markdown
-Microservices Reddit in ui-bf7c99cb8-2pl8d container
-
-Can't show blog posts, some problems with the post service. Refresh?
-```
-#### UI работает, подключим остальные компоненты
-##### post-deployment.yml
-
-```yamlex
-apiVersion: apps/v1beta2
-kind: Deployment
-metadata:
-  name: post
-  labels:
-    app: reddit
-    component: post
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: reddit
-      component: post
-  template:
-    metadata:
-      name: post
-      labels:
-        app: reddit
-        component: post
-    spec:
-      containers:
-      - image: asomir/post
-        name: post
-
-```
-#### Deploy Post:
-
-```bash
-kubectl apply -f post-deployment.yml 
-```
-> output 
-
-```markdown
-deployment.apps "post" created
-```
-
-```bash
-kubectl get deployment
-```
-
-> output 
-
-```markdown
-NAME      DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-post      3         3         3            3           42s
-ui        3         3         3            3           13m
-```
-##### Селектором выделим post:
-
-```bash
-kubectl get pods --selector component=post
-```
-> output 
-
-```markdown
-NAME                    READY     STATUS    RESTARTS   AGE
-post-59f6d967f8-77clg   1/1       Running   0          3m
-post-59f6d967f8-g8dxq   1/1       Running   0          3m
-post-59f6d967f8-rljsd   1/1       Running   0          3m
-```
-
-##### Пробросим порт 8080 к 5000 порту поста:
-```bash
-kubectl port-forward post-59f6d967f8-77clg 8080:5000
-```
-##### Пойдём по ссылке, чтобы проверить хелсчек http://localhost:8080/healthcheck
-```markdown
-{"status": 0, "dependent_services": {"postdb": 0}, "version": "0.0.2"}
-```
-
-### Задание
-
-##### Deployment компоненты Comment сконфигурируйте подобным же образом и проверьте. Не забудьте, что comment слушает по-умолчанию на порту 9292
-
-
-#### Deploy comment:
-
-```bash
-kubectl apply -f comment-deployment.yml 
-```
-> output 
-
-```markdown
-deployment.apps "comment" created
-```
-
-```bash
-kubectl get deployment
-```
-
-> output 
-
-```markdown
-NAME      DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-comment   3         3         3            3           2m
-post      3         3         3            3           25m
-ui        3         3         3            3           37m
-```
-##### Селектором выделим comment:
-
-```bash
-kubectl get pods --selector component=comment
-```
-> output 
-
-```markdown
-NAME                       READY     STATUS    RESTARTS   AGE
-comment-56845dfcd6-qdp9d   1/1       Running   0          2m
-comment-56845dfcd6-w4vv5   1/1       Running   0          2m
-comment-56845dfcd6-zkrl4   1/1       Running   0          2m
-```
-
-##### Пробросим порт 8080 к 5000 порту поста:
-```bash
-kubectl port-forward comment-56845dfcd6-qdp9d 8080:9292
-```
-##### Пойдём по ссылке, чтобы проверить хелсчек http://localhost:8080/healthcheck
-
-```markdown
-{"status":0,"dependent_services":{"commentdb":0},"version":"0.0.3"}
-```
-
-#### Deploy MongoDB
-
-##### Разместим базу данных
-
-##### Также примонтируем стандартный Volume для хранения данных вне контейнера
-
-```yamlex
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  name: mongo
-  labels:
-    app: reddit
-    component: mongo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: reddit
-      component: mongo
-  template:
-    metadata:
-      name: mongo
-      labels:
-        app: reddit
-        component: mongo
-    spec:
-      containers:
-      - image: mongo:3.2
-        name: mongo
-        volumeMounts:                       # Точка монтирования в контейнере
-        - name: mongo-persistent-storage
-          mountPath: /data/db
-      volumes:                              # Ассоциированные с подом волюмы
-      - name: mongo-persistent-storage
-        emptyDir: {}
-```
-
-### Services
-
-В текущем состоянии приложение не будет работать, так его компоненты ещё не знают как найти друг друга
-Для связи компонент между собой и с внешним миром используется объект Service - абстракция, которая определяет набор POD-ов (Endpoints) и способ доступа к ним
-
-##### Для связи ui с post и comment нужно создать им по объекту Service.
-
-post-service.yml
-
-```yamlex
-apiVersion: v1
-kind: Service
-metadata:
-                      # Когда объект service будет создан:
-  name: post          # В DNS появится запись для post  
-  labels:
-    app: reddit
-    component: post
-spec:
-  ports:
-  - port: 5000        # 2) При обращении на адрес post:5000 изнутри любого из POD-ов текущего namespace
-    protocol: TCP
-    targetPort: 5000  # нас переправит на 5000-ный порт одного из POD-ов приложения post,
-  selector:           # выбранных по label-ам selector-ом
-    app: reddit
-    component: post
-```
-
-##### Создаём сервис post
-
-```bash
-kubectl apply -f post-service.yml 
-```
-##### По label-ам должны были быть найдены соответствующие POD-ы. Посмотреть можно с помощью
-
-```bash
-kubectl describe service post | grep Endpoints
-```
-> output
-
-```markdown
-Endpoints:         172.17.0.7:5000,172.17.0.8:5000,172.17.0.9:5000
-```
-##### Запросим поды, которые у нас есть
-
-```bash
-kubectl get pods
-```
-> output
-
-```markdown
-NAME                       READY     STATUS    RESTARTS   AGE
-comment-56845dfcd6-qdp9d   1/1       Running   0          1h
-comment-56845dfcd6-w4vv5   1/1       Running   0          1h
-comment-56845dfcd6-zkrl4   1/1       Running   0          1h
-post-59f6d967f8-77clg      1/1       Running   0          1h
-post-59f6d967f8-g8dxq      1/1       Running   0          1h
-post-59f6d967f8-rljsd      1/1       Running   0          1h
-ui-bf7c99cb8-2pl8d         1/1       Running   0          1h
-ui-bf7c99cb8-kzn6l         1/1       Running   0          1h
-ui-bf7c99cb8-tb2z7         1/1       Running   0          1h
-```
-##### Зайдём внутрь любого из полученных подов 
-
-```bash
-kubectl exec -ti comment-56845dfcd6-qdp9d  nslookup post
-```
-##### Выползла ошибка, надо разбираться
-```markdown
-rpc error: code = 2 desc = oci runtime error: exec failed: container_linux.go:262: starting container process caused "exec: \"nslookup\": executable file not found in $PATH"
-
-command terminated with exit code 126
-```
-### Задание
-
-#### По аналогии создайте объект Service в файле comment-service.yml для Comment (не забудьте про label-ы и правильные tcp-порты).
-
-```yamlex
-apiVersion: v1
-kind: Service
-metadata:
-  name: comment
-  labels:
-    app: reddit
-    component: comment
-spec:
-  ports:
-  - port: 9292
-    protocol: TCP
-    targetPort: 9292
-  selector:
-    app: reddit
-    component: comment
-```
-
-```bash
-kubectl apply -f comment-service.yml 
-```
-> output 
-
-```markdown
-service "comment" created
-```
-#### Service MongoDB
-##### Post и Comment также используют mongodb, следовательно ей тоже нужен объект Service.
-
-mongodb-service.yml
-
-```yamlex
-apiVersion: v1
-kind: Service
-metadata:
-  name: mongodb
-  labels:
-    app: reddit
-    component: mongo
-spec:
-  ports:
-  - port: 27017
-    protocol: TCP
-    targetPort: 27017
-  selector:
-    app: reddit
-    component: mongo
-```
-
-##### Deploy MongoDB service
-
-```bash
-kubectl apply -f mongodb-service.yml
-```
-> output 
-
-```markdown
-service "mongodb" created
-```
-
-##### Проверим наличие сервисов 
-
-```bash
-kubectl get services
-```
-> output
-
-```markdown
-NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE
-comment      ClusterIP   10.101.71.166    <none>        9292/TCP    7m
-kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP     4h
-mongodb      ClusterIP   10.100.225.155   <none>        27017/TCP   44s
-post         ClusterIP   10.109.136.84    <none>        5000/TCP    19m
-```
-##### пробрасываем порт на ui pod
-
-```bash
-kubectl port-forward ui-bf7c99cb8-2pl8d  9292:9292
-```
-> output
-
-```markdown
-Forwarding from 127.0.0.1:9292 -> 9292
-Forwarding from [::1]:9292 -> 9292
-```
-##### Заходим на http://localhost:9292
-
-##### Посмотрим в логи ,напимер, comments:
-
-```bash
-kubectl logs comment-56845dfcd6-w4vv5 
-```
-Приложение ищет совсем другой адрес: comment_db, а не
-mongodb
-Аналогично и сервис post ищет post_db.
-Эти адреса заданы в их Dockerfile-ах в виде переменных
-окружения:
-
-```markdown
-post/Dockerfile
-...
-ENV POST_DATABASE_HOST=post_db
-comment/Dockerfile
-...
-ENV COMMENT_DATABASE_HOST=comment_db
-```
-
-В Docker Swarm проблема доступа к одному ресурсу под разными именами решалась с помощью сетевых алиасов.
-В Kubernetes такого функционала нет. Мы эту проблему можем решить с помощью тех же Service-ов.
-
-##### Сделаем Service для БД comment.
-
-comment-mongodb-service.yml
-
-
-```yamlex
-apiVersion: v1
-kind: Service
-metadata:
-  name: comment-db      # В имени нельзя использовать “_”
-  labels:
-    app: reddit
-    component: mongo
-    comment-db: "true"  # добавим метку, чтобы различать сервисы
-spec:
-  ports:
-  - port: 27017
-    protocol: TCP
-    targetPort: 27017
-  selector:
-    app: reddit
-    component: mongo
-    comment-db: "true"  # Отдельный лейбл для comment-db
-```
-> P.S. булевые значения обязательно указывать в кавычках
-
-```bash
-kubectl apply -f comment-mongodb-service.yml 
-```
-##### Зададим pod-ам comment переменную окружения для обращения к базе
-
-```yamlex
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  name: comment
-  labels:
-    app: reddit
-    component: comment
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: reddit
-      component: comment
-  template:
-    metadata:
-      name: comment
-      labels:
-        app: reddit
-        component: comment
-    spec:
-      containers:
-      - image: asomir/comment
-        name: comment
-        env:                            # переменная окружения для обращения к базе
-        - name: COMMENT_DATABASE_HOST
-          value: comment-db
-```
-
-##### Создадим все новые объекты с помощью kubectl apply -f
-
-```bash
-kubectl delete -f comment-deployment.yml 
-kubectl apply -f comment-deployment.yml 
-kubectl delete -f mongodb-service.yml
-```
-#### Задание
-##### Проделайте аналогичные же действия для post-сервиса. Название сервиса должно post-db.
-
-###### Добавляем сервис монги для БД post, добавим метку post-db: "true" чтобы различить сервис
-post-mongodb-service.yml
+gcloud beta container clusters update cluster-1 --zone=us-central1-a --enable-network-policy
 
 ```yamlex
 apiVersion: v1
@@ -7537,7 +10738,6 @@ gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
 ##### Запушим собранные образы на DockerHub:
 
 
-<<<<<<< HEAD
 
 $ docker login
 Login Succeeded
@@ -7550,16 +10750,7 @@ docker push $USER_NAME/prometheus
 docker push $USER_NAME/alertmanager
 
 ```
-||||||| merged common ancestors
-$ docker login
-Login Succeeded
 
-docker push $USER_NAME/ui
-docker push $USER_NAME/comment
-docker push $USER_NAME/post
-docker push $USER_NAME/prometheus
-=======
->>>>>>> logging-1
 
 
 https://hub.docker.com/r/asomir/
@@ -7723,7 +10914,7 @@ services:
     networks:
       - front_net
   post:
-    container_name: post-py
+    container_name: post
     image: ${USERNAME}/post:latest
     networks:
       - front_net
